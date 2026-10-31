@@ -9,7 +9,7 @@ Choix assumé pour une équipe réduite : peu de pièces mobiles, déploiement s
 Navigateur / tablette / téléphone (PWA installable)
         |  HTTPS : pages Jinja + HTMX/Alpine.js (Phase 2) + fetch JSON
         v
-Flask (fonction serverless Vercel : api/index.py)
+Flask (fonction serverless Vercel : wsgi.py)
   ├─ web/        pages HTML, manifest, service worker
   ├─ api/        blueprints JSON par module (auth, garage, admin ; clients, vehicules, or, devis... ensuite)
   ├─ services/   logique métier (auth, stockage logos, emails, audit ; facturation, stock... ensuite)
@@ -135,7 +135,7 @@ de Neon selon le plan + export hebdomadaire), export et suppression des données
 
 ## 10. Déploiement
 
-Vercel : 1 fonction serverless Python (`api/index.py`, toutes les URL y sont routées par `vercel.json`), 1 PostgreSQL Neon
+Vercel : 1 fonction serverless Python (Flask détecté via `wsgi.py`) ; fichiers statiques dans `public/` (CDN), 1 PostgreSQL Neon
 (adresse pooled, pas de pool persistant côté application), 1 Cron quotidien (`/api/cron/purge-tokens`, protégé par
 `CRON_SECRET`). `flask db upgrade` se lance depuis un poste de travail vers la base Neon, avant le déploiement du code
 qui dépend de la migration. Variables : voir `.env.example`. L'application refuse de démarrer en production si la

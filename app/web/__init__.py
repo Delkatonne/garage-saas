@@ -6,6 +6,8 @@ import sqlalchemy as sa
 
 from app.extensions import db
 
+PUBLIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "public")
+
 bp = Blueprint("web", __name__)
 
 PAGES = {
@@ -34,15 +36,14 @@ for _path, (_tpl, _page) in PAGES.items():
 
 @bp.get("/sw.js")
 def service_worker():
-    resp = send_from_directory(os.path.join(current_app.root_path, "static"), "sw.js", mimetype="application/javascript")
+    resp = send_from_directory(PUBLIC_DIR, "sw.js", mimetype="application/javascript")
     resp.headers["Cache-Control"] = "no-cache"
     return resp
 
 
 @bp.get("/manifest.webmanifest")
 def manifest():
-    return send_from_directory(os.path.join(current_app.root_path, "static"), "manifest.webmanifest",
-                               mimetype="application/manifest+json")
+    return send_from_directory(PUBLIC_DIR, "manifest.webmanifest", mimetype="application/manifest+json")
 
 
 @bp.get("/uploads/logos/<path:filename>")

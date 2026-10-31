@@ -54,7 +54,9 @@ Pour un client non navigateur, l'en-tête `Authorization: Bearer <access_token>`
 
 ## Déploiement sur Vercel
 
-Tout (pages + API) tourne dans UNE fonction serverless Python (`api/index.py`) ; `vercel.json` y envoie toutes les URL.
+Tout (pages + API) tourne dans UNE fonction serverless Python : Vercel détecte Flask automatiquement grâce à `wsgi.py`
+(variable `app`). Les fichiers statiques (CSS, JS, icônes, `sw.js`, manifeste) sont dans `public/` : le CDN de Vercel les
+sert directement, Flask les sert depuis le même dossier en développement.
 
 ### 1. Créer les services externes
 * **Neon** (PostgreSQL) : copier l'adresse de connexion **pooled** (hôte contenant `-pooler`) avec `?sslmode=require`.

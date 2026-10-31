@@ -5,9 +5,14 @@ from flask import Flask
 from .config import TestConfig, get_config  # noqa: F401
 from .extensions import cors, db, jwt, limiter, mail, migrate
 
+PUBLIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "public")
+
 
 def create_app(config_object=None):
-    app = Flask(__name__, instance_relative_config=True)
+    # Les fichiers statiques vivent dans public/ : Vercel les sert directement (CDN) et ignore static_folder ;
+    # en développement, Flask les sert depuis le même dossier.
+    app = Flask(__name__, instance_relative_config=True,
+                static_folder=os.path.join(PUBLIC_DIR, "static"), static_url_path="/static")
     app.config.from_object(config_object or get_config())
     try:
         os.makedirs(app.instance_path, exist_ok=True)
