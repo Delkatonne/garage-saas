@@ -1,30 +1,50 @@
-"""Envoi d'emails (asynchrone en production, synchrone en test)."""
-import threading
+"""Envoi d'emails : API HTTPS Brevo (production serverless) ou SMTP, toujours de façon synchrone.
+
+Sur Vercel (serverless) un thread d'arrière-plan peut être coupé dès que la réponse est envoyée :
+l'email est donc envoyé pendant la requête. Un échec d'envoi est journalisé mais ne casse jamais la requête.
+"""
+import json
+import urllib.request
+from email.utils import parseaddr
 
 from flask import current_app
 from flask_mail import Message
 
 from app.extensions import mail
 
+BREVO_URL = "https://api.brevo.com/v3/smtp/email"
 
-def _deliver(app, msg):
-    with app.app_context():
-        try:
-            mail.send(msg)
-        except Exception:  # noqa: BLE001 - un email raté ne doit jamais casser la requête
-            app.logger.exception("Échec d'envoi d'email à %s", msg.recipients)
+
+def _send_brevo(app, to: str, subject: str, text: str, html: str | None) -> None:
+    name, address = parseaddr(app.config["MAIL_DEFAULT_SENDER"])
+    sender = {"email": address}
+    if name:
+        sender["name"] = name
+    payload = {"sender": sender, "to": [{"email": to}], "subject": subject, "textContent": text}
+    if html:
+        payload["htmlContent"] = html
+    req = urllib.request.Request(
+        BREVO_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"api-key": app.config["BREVO_API_KEY"], "content-type": "application/json",
+                 "accept": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        resp.read()
 
 
 def send_mail(to: str, subject: str, text: str, html: str | None = None) -> None:
     app = current_app._get_current_object()
-    msg = Message(subject=subject, recipients=[to], body=text, html=html)
-    if app.testing:
-        mail.send(msg)  # capturé par mail.record_messages()
-        return
-    if not app.config.get("MAIL_SERVER"):
-        app.logger.warning("MAIL_SERVER non configuré. Email '%s' pour %s :\n%s", subject, to, text)
-        return
-    threading.Thread(target=_deliver, args=(app, msg), daemon=True).start()
+    try:
+        if app.config.get("BREVO_API_KEY"):
+            _send_brevo(app, to, subject, text, html)
+        elif app.testing or app.config.get("MAIL_SERVER"):
+            mail.send(Message(subject=subject, recipients=[to], body=text, html=html))
+        else:
+            app.logger.warning("Aucun service d'email configuré. Email '%s' pour %s :\n%s", subject, to, text)
+    except Exception:  # noqa: BLE001 - un email raté ne doit jamais casser la requête
+        app.logger.exception("Échec d'envoi d'email à %s", to)
 
 
 def _link(path: str, token: str) -> str:

@@ -11,5 +11,5 @@ email-validator==2.3.0
 Pillow>=11.0
 cloudinary>=1.41
 psycopg2-binary>=2.9.9
-gunicorn>=22.0
+redis>=5.0
 python-dotenv>=1.0

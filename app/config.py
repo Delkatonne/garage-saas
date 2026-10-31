@@ -3,6 +3,7 @@ import os
 from datetime import timedelta
 
 from dotenv import load_dotenv
+from sqlalchemy.pool import NullPool
 
 load_dotenv()
 
@@ -13,9 +14,20 @@ def _bool(value, default=False):
     return str(value).strip().lower() in ("1", "true", "yes", "on")
 
 
+def _default_base_url():
+    """Adresse publique du site : APP_BASE_URL, sinon le domaine de production fourni par Vercel."""
+    explicit = os.environ.get("APP_BASE_URL")
+    if explicit:
+        return explicit.rstrip("/")
+    vercel_host = os.environ.get("VERCEL_PROJECT_PRODUCTION_URL")
+    if vercel_host:
+        return "https://" + vercel_host.rstrip("/")
+    return "http://localhost:5000"
+
+
 def _database_url():
     url = os.environ.get("DATABASE_URL", "sqlite:///garage_dev.db")
-    # Render/Heroku fournissent parfois "postgres://", non supporté par SQLAlchemy 2.
+    # Certains hébergeurs fournissent parfois "postgres://", non supporté par SQLAlchemy 2.
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
     return url
@@ -27,10 +39,12 @@ class Config:
 
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", SECRET_KEY)
-    APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:5000").rstrip("/")
+    ON_VERCEL = bool(os.environ.get("VERCEL"))
+    APP_BASE_URL = _default_base_url()
 
     SQLALCHEMY_DATABASE_URI = _database_url()
-    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+    # Serverless : pas de pool de connexions persistant (on s'appuie sur le pooler de Neon).
+    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True, **({"poolclass": NullPool} if ON_VERCEL else {})}
 
     # --- JWT : cookies httpOnly + protection CSRF (double submit) ---
     JWT_TOKEN_LOCATION = ["cookies", "headers"]
@@ -41,7 +55,8 @@ class Config:
     JWT_COOKIE_CSRF_PROTECT = True
     JWT_REFRESH_COOKIE_PATH = "/api/auth/"
 
-    # --- Emails ---
+    # --- Emails : API HTTPS Brevo (recommandé en production) ou SMTP ---
+    BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "")
     MAIL_SERVER = os.environ.get("MAIL_SERVER", "")
     MAIL_PORT = int(os.environ.get("MAIL_PORT", 587))
     MAIL_USE_TLS = _bool(os.environ.get("MAIL_USE_TLS"), True)
@@ -72,6 +87,7 @@ class Config:
     CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
     RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
     RATELIMIT_ENABLED = True
+    CRON_SECRET = os.environ.get("CRON_SECRET", "")  # Vercel l'envoie en "Authorization: Bearer ..." aux crons
 
 
 class TestConfig(Config):
@@ -87,6 +103,8 @@ class TestConfig(Config):
     RATELIMIT_ENABLED = False
     MAIL_SUPPRESS_SEND = True
     CLOUDINARY_URL = ""
+    BREVO_API_KEY = ""   # les tests ne doivent jamais appeler Brevo, même si un .env local en définit une
+    CRON_SECRET = ""
     JWT_COOKIE_SECURE = False
 
 
@@ -97,4 +115,11 @@ def get_config():
             raise RuntimeError("SECRET_KEY doit être défini en production.")
         if not os.environ.get("DATABASE_URL"):
             raise RuntimeError("DATABASE_URL doit être défini en production.")
+        if not cfg.CLOUDINARY_URL:
+            raise RuntimeError("CLOUDINARY_URL doit être défini en production (stockage des logos).")
+        if not (cfg.BREVO_API_KEY or cfg.MAIL_SERVER):
+            raise RuntimeError("BREVO_API_KEY (ou MAIL_SERVER) doit être défini en production : sans email, "
+                               "personne ne peut confirmer son compte.")
+        if cfg.APP_BASE_URL.startswith("http://localhost"):
+            raise RuntimeError("APP_BASE_URL doit être défini en production (liens des emails).")
     return cfg

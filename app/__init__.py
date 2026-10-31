@@ -9,7 +9,10 @@ from .extensions import cors, db, jwt, limiter, mail, migrate
 def create_app(config_object=None):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config_object or get_config())
-    os.makedirs(app.instance_path, exist_ok=True)
+    try:
+        os.makedirs(app.instance_path, exist_ok=True)
+    except OSError:  # système de fichiers en lecture seule (Vercel) : inutile en production
+        pass
     if not app.config.get("UPLOAD_FOLDER"):
         app.config["UPLOAD_FOLDER"] = os.path.join(app.instance_path, "uploads")
 
@@ -28,16 +31,20 @@ def create_app(config_object=None):
 
     from . import models, tenancy  # noqa: F401  (enregistre les modèles et les filtres tenant)
     from . import auth_hooks  # noqa: F401
-    from .api import admin, auth, garage
+    from .api import admin, auth, cron, garage
     from .cli import register_cli
     from .errors import register_error_handlers
     from .web import bp as web_bp
 
-    for module in (auth, garage, admin):
+    for module in (auth, garage, admin, cron):
         app.register_blueprint(module.bp)
     app.register_blueprint(web_bp)
     register_error_handlers(app)
     register_cli(app)
+
+    if app.config["IS_PRODUCTION"] and app.config["RATELIMIT_STORAGE_URI"].startswith("memory://"):
+        app.logger.warning("RATELIMIT_STORAGE_URI=memory:// : la limitation des tentatives est par instance "
+                           "(inefficace en serverless). Configurez Redis (Upstash).")
 
     @app.after_request
     def security_headers(resp):

@@ -1,13 +1,11 @@
 """Commandes CLI : flask create-admin | flask purge-tokens"""
-from datetime import datetime, timezone
-
 import click
 import sqlalchemy as sa
-from flask import current_app
 
 from .extensions import db
-from .models import AuthToken, PlatformAdmin, RevokedToken
+from .models import PlatformAdmin
 from .security import hash_password, password_problems
+from .services.maintenance import purge_expired_tokens
 
 
 def register_cli(app):
@@ -29,9 +27,6 @@ def register_cli(app):
 
     @app.cli.command("purge-tokens")
     def purge_tokens():
-        """Supprime les jetons expirés (à planifier chaque jour via un cron Render)."""
-        now = datetime.now(timezone.utc)
-        a = db.session.execute(sa.delete(RevokedToken).where(RevokedToken.expires_at < now)).rowcount
-        b = db.session.execute(sa.delete(AuthToken).where(AuthToken.expires_at < now)).rowcount
-        db.session.commit()
+        """Supprime les jetons expirés (le Cron Vercel appelle /api/cron/purge-tokens chaque jour)."""
+        a, b = purge_expired_tokens()
         click.echo(f"{a} jetons révoqués et {b} jetons à usage unique supprimés.")

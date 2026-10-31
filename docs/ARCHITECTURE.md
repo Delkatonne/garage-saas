@@ -3,13 +3,13 @@
 ## 1. Vue d'ensemble
 
 Monolithe modulaire Flask : un seul déploiement, une seule base PostgreSQL, un découpage strict par module.
-Choix assumé pour une équipe réduite : peu de pièces mobiles, déploiement simple sur Render, coût minimal.
+Choix assumé pour une équipe réduite : peu de pièces mobiles, déploiement simple sur Vercel (fonction serverless Python), coût minimal.
 
 ```
 Navigateur / tablette / téléphone (PWA installable)
         |  HTTPS : pages Jinja + HTMX/Alpine.js (Phase 2) + fetch JSON
         v
-Flask (gunicorn)
+Flask (fonction serverless Vercel : api/index.py)
   ├─ web/        pages HTML, manifest, service worker
   ├─ api/        blueprints JSON par module (auth, garage, admin ; clients, vehicules, or, devis... ensuite)
   ├─ services/   logique métier (auth, stockage logos, emails, audit ; facturation, stock... ensuite)
@@ -17,10 +17,10 @@ Flask (gunicorn)
   ├─ tenancy.py  isolation automatique par garage (fail-closed)
   └─ auth_hooks  JWT -> utilisateur -> garage courant
         |
-        ├─ PostgreSQL (Render)           données + migrations Alembic
+        ├─ PostgreSQL (Neon, pooled)     données + migrations Alembic (lancées depuis un poste de travail)
         ├─ Cloudinary                    logos, photos d'état à l'arrivée, signatures, PDF archivés
-        └─ SMTP (Brevo/Mailgun/Gmail)    emails transactionnels
-Render Cron Job : relances, rappels d'entretien, purge des jetons (flask purge-tokens)
+        └─ Brevo (API HTTPS)             emails transactionnels (SMTP possible hors Vercel)
+Vercel Cron : purge des jetons (/api/cron/purge-tokens) ; relances et rappels d'entretien ensuite
 ```
 
 Pourquoi Flask + Jinja + HTMX/Alpine plutôt que React : un seul déploiement, pas de build front, pages rapides sur
@@ -101,8 +101,8 @@ dans `permissions.py` et s'affine module par module.
   renseigné ; (c) un instantané JSON (garage, client, véhicule) et un hash d'intégrité sont figés à l'émission.
   Correction uniquement par **avoir** (`AV-`), qui référence la facture et annule tout ou partie.
 * Le **reçu** est créé automatiquement avec chaque paiement (même transaction), avec solde restant et encaisseur.
-* Génération PDF : WeasyPrint (HTML/CSS vers PDF, modèles Jinja identiques à l'aperçu écran). Il nécessite des
-  bibliothèques système (Pango) : déploiement Render via Docker. Alternative sans dépendances système : ReportLab.
+* Génération PDF : **ReportLab** (Python pur, sans bibliothèque système : compatible avec les fonctions serverless
+  de Vercel). WeasyPrint (HTML/CSS vers PDF) est écarté tant que l'hébergement est Vercel, car il exige Pango.
   Le PDF est archivé (Cloudinary) avec son hash ; la réimpression resert le fichier archivé (jamais régénéré pour une facture émise).
 * Envoi : email (pièce jointe) ou lien WhatsApp `wa.me` pré-rempli avec un lien public à jeton signé et expirant.
 * **e-MECeF** : la facture porte déjà les champs d'extension (`emecef_uid`, `emecef_code`, `emecef_qr`, `emecef_statut`)
@@ -115,7 +115,7 @@ dans `permissions.py` et s'affine module par module.
   vient du garage (`devise_decimales`, 0 pour le FCFA). Arrondi calculé ligne par ligne, puis total.
 * Heures stockées en UTC ; affichage en `Africa/Porto-Novo` (UTC+1, sans heure d'été).
 * Fichiers : validation du type réel (Pillow), taille, ré-encodage (supprime métadonnées et contenus piégés),
-  stockage Cloudinary en production. Le disque de Render n'est pas persistant : le stockage local sert au développement.
+  stockage Cloudinary en production. Le disque de Vercel est en lecture seule : le stockage local sert uniquement au développement.
 
 ## 8. Tolérance aux connexions instables
 
@@ -130,14 +130,20 @@ dans `permissions.py` et s'affine module par module.
 
 CSP stricte (`script-src 'self'`, aucun script inline), HSTS, `X-Frame-Options: DENY`, `nosniff`, CORS fermé par défaut,
 cookies httpOnly, auto-échappement Jinja (XSS), requêtes paramétrées SQLAlchemy (injection SQL), limite de taille des
-requêtes, journal d'audit (`audit_logs`, jamais modifié par l'application), sauvegardes PostgreSQL quotidiennes (plan
-Render payant + export hebdomadaire), export et suppression des données du garage à la demande (Phase 3).
+requêtes, journal d'audit (`audit_logs`, jamais modifié par l'application), sauvegardes PostgreSQL quotidiennes (rétention
+de Neon selon le plan + export hebdomadaire), export et suppression des données du garage à la demande (Phase 3).
 
 ## 10. Déploiement
 
-Render : 1 Web Service (gunicorn), 1 PostgreSQL, 1 Cron Job quotidien. `flask db upgrade` à chaque déploiement.
-Variables : voir `.env.example`. En production multi-workers, définir `RATELIMIT_STORAGE_URI` (Redis) ; sans Redis,
-le verrouillage par compte reste efficace car il est stocké en base.
+Vercel : 1 fonction serverless Python (`api/index.py`, toutes les URL y sont routées par `vercel.json`), 1 PostgreSQL Neon
+(adresse pooled, pas de pool persistant côté application), 1 Cron quotidien (`/api/cron/purge-tokens`, protégé par
+`CRON_SECRET`). `flask db upgrade` se lance depuis un poste de travail vers la base Neon, avant le déploiement du code
+qui dépend de la migration. Variables : voir `.env.example`. L'application refuse de démarrer en production si la
+configuration est incomplète. Sans Redis (`RATELIMIT_STORAGE_URI`), la limitation par IP est par instance ; le
+verrouillage par compte reste efficace car il est stocké en base.
+
+Contraintes serverless à respecter pour la suite : pas de thread d'arrière-plan (tâches différées = Cron ou file Vercel),
+pas d'écriture sur le disque (fichiers = Cloudinary), durée maximale par requête (`maxDuration` dans `vercel.json`).
 
 ## 11. Découpage en phases
 
