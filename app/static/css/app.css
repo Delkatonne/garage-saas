@@ -1,0 +1,27 @@
+:root{--c:#0f766e;--c2:#115e59;--bg:#f4f6f8;--card:#fff;--tx:#1f2937;--mu:#6b7280;--er:#b91c1c;--ok:#166534;--bd:#d1d5db}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:env(safe-area-inset-bottom)}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.75rem 1rem;background:var(--c);color:#fff;padding-top:calc(.75rem + env(safe-area-inset-top))}
+.topbar a{color:#fff;text-decoration:none}.brand{font-weight:700}
+#nav{display:flex;gap:1rem;font-size:.95rem}
+.container{max-width:760px;margin:0 auto;padding:1rem}
+.card{background:var(--card);border-radius:12px;padding:1.25rem;margin-bottom:1rem;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.narrow{max-width:480px;margin-inline:auto}.center{text-align:center}
+h1{font-size:1.4rem;margin:.2rem 0 .8rem}h2{font-size:1.1rem}
+label{display:block;margin:.7rem 0 .15rem;font-size:.92rem;font-weight:600}
+input,select{display:block;width:100%;padding:.65rem .75rem;border:1px solid var(--bd);border-radius:8px;font:inherit;margin-top:.2rem;background:#fff}
+input:disabled{background:#f3f4f6}
+input:focus,select:focus{outline:2px solid var(--c);border-color:var(--c)}
+.check{display:flex;align-items:center;gap:.5rem}.check input{width:auto;margin:0}
+.btn{display:inline-block;margin-top:1rem;padding:.7rem 1.2rem;border:0;border-radius:8px;background:var(--c);color:#fff;font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
+.btn:hover{background:var(--c2)}.btn:disabled{opacity:.6;cursor:wait}
+.btn-ghost{background:transparent;color:var(--c);border:1px solid var(--c)}.btn-ghost:hover{background:#ecfdf5}
+.actions{display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap}
+.err{display:block;color:var(--er);font-size:.85rem;min-height:0}.muted{color:var(--mu);font-size:.9rem}
+.alert{padding:.8rem 1rem;border-radius:8px;margin-bottom:1rem}
+.alert.error{background:#fef2f2;color:var(--er);border:1px solid #fecaca}.alert.success{background:#f0fdf4;color:var(--ok);border:1px solid #bbf7d0}
+.garage-head{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.logo{width:64px;height:64px;border-radius:12px;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.4rem;overflow:hidden;flex:none}
+.logo img{width:100%;height:100%;object-fit:contain;background:#fff}
+form.inline{display:flex;gap:.5rem;align-items:end;flex-wrap:wrap}
+@media (max-width:480px){.container{padding:.6rem}.card{padding:1rem}}

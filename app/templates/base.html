@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f766e">
+  <title>{% block title %}Garage SaaS{% endblock %}</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/static/icons/icon-192.png">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="/static/js/app.js" defer></script>
+</head>
+<body data-page="{{ page }}">
+  <header class="topbar">
+    <a class="brand" href="/">&#128295; Garage SaaS</a>
+    <nav id="nav"></nav>
+  </header>
+  <main class="container">
+    <div id="alert" class="alert" role="alert" hidden></div>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

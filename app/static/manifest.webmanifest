@@ -1,0 +1,13 @@
+{
+  "name": "Garage SaaS",
+  "short_name": "Garage",
+  "start_url": "/tableau-de-bord",
+  "display": "standalone",
+  "background_color": "#f4f6f8",
+  "theme_color": "#0f766e",
+  "lang": "fr",
+  "icons": [
+    {"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}

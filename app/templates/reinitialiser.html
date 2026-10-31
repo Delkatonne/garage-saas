@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Nouveau mot de passe{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>Choisir un nouveau mot de passe</h1>
+  <form data-api="/api/auth/reset-password" data-with-token data-redirect="/connexion" data-redirect-delay="2500" novalidate>
+    <label>Nouveau mot de passe<input name="mot_de_passe" type="password" minlength="8" required autocomplete="new-password"></label>
+    <span class="err" data-error-for="mot_de_passe"></span>
+    <label>Confirmer<input name="confirmation_mot_de_passe" type="password" required autocomplete="new-password"></label>
+    <span class="err" data-error-for="confirmation_mot_de_passe"></span>
+    <button class="btn" type="submit">Enregistrer</button>
+  </form>
+</section>
+{% endblock %}

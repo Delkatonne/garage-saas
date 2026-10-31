@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord{% endblock %}
+{% block content %}
+<section class="card">
+  <div class="garage-head">
+    <div id="logo" class="logo" aria-hidden="true"></div>
+    <div><h1 id="garage-nom">…</h1><p class="muted" id="user-info"></p></div>
+  </div>
+  <p id="essai-info" class="muted"></p>
+</section>
+<section class="card">
+  <h2>Modules</h2>
+  <p class="muted">La Phase 1 (comptes garages) est active. Clients, véhicules, ordres de réparation, devis, factures et stock arrivent en Phase 2.</p>
+  <p><a class="btn btn-ghost" href="/profil">Profil du garage</a></p>
+</section>
+{% endblock %}

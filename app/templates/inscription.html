@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Créer mon garage{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>Créer le compte de mon garage</h1>
+  <form data-api="/api/auth/register" data-draft="inscription" data-success="message" novalidate>
+    <label>Nom du garage *<input name="nom_garage" maxlength="120" required autocomplete="organization"></label>
+    <span class="err" data-error-for="nom_garage"></span>
+    <label>Nom du chef de garage *<input name="nom_chef_garage" maxlength="120" required autocomplete="name"></label>
+    <span class="err" data-error-for="nom_chef_garage"></span>
+    <label>Email du garage *<input name="email" type="email" required autocomplete="email"></label>
+    <span class="err" data-error-for="email"></span>
+    <label>Logo (PNG, JPG ou WEBP, 2 Mo max)<input name="logo" type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"></label>
+    <span class="err" data-error-for="logo"></span>
+    <label>Mot de passe * (8 caractères min., lettres et chiffres)<input name="mot_de_passe" type="password" minlength="8" required autocomplete="new-password"></label>
+    <span class="err" data-error-for="mot_de_passe"></span>
+    <label>Confirmer le mot de passe *<input name="confirmation_mot_de_passe" type="password" required autocomplete="new-password"></label>
+    <span class="err" data-error-for="confirmation_mot_de_passe"></span>
+    <button class="btn" type="submit">Créer mon compte</button>
+  </form>
+  <p class="muted">Déjà inscrit ? <a href="/connexion">Se connecter</a></p>
+</section>
+{% endblock %}
