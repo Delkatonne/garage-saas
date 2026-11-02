@@ -1,0 +1,24 @@
+<label>Type de véhicule
+  <select name="type">
+    <option value="voiture">Voiture</option>
+    <option value="moto">Moto</option>
+    <option value="scooter">Scooter</option>
+    <option value="quad">Quad</option>
+  </select>
+</label>
+<label>Marque<input name="marque" maxlength="80" autocomplete="off"></label><span class="err" data-error-for="marque"></span>
+<label>Modèle<input name="modele" maxlength="80" autocomplete="off"></label><span class="err" data-error-for="modele"></span>
+<label>Version / finition<input name="version" maxlength="80"></label><span class="err" data-error-for="version"></span>
+<label>Immatriculation<input name="immatriculation" maxlength="20" autocomplete="off"></label><span class="err" data-error-for="immatriculation"></span>
+<label>Numéro de châssis (VIN)<input name="vin" maxlength="30" autocomplete="off"></label><span class="err" data-error-for="vin"></span>
+<label>Année<input name="annee" type="number" min="1900" max="2100"></label><span class="err" data-error-for="annee"></span>
+<label>Couleur<input name="couleur" maxlength="40"></label><span class="err" data-error-for="couleur"></span>
+<label>Carburant
+  <select name="carburant">
+    <option value="">—</option><option value="essence">Essence</option><option value="diesel">Diesel</option>
+    <option value="hybride">Hybride</option><option value="electrique">Électrique</option><option value="gpl">GPL</option><option value="autre">Autre</option>
+  </select>
+</label><span class="err" data-error-for="carburant"></span>
+<label>Cylindrée (cm³)<input name="cylindree_cc" type="number" min="1" max="20000"></label><span class="err" data-error-for="cylindree_cc"></span>
+<label>Kilométrage actuel<input name="kilometrage_actuel" type="number" min="0"></label><span class="err" data-error-for="kilometrage_actuel"></span>
+<label>Notes<textarea name="notes" rows="3" maxlength="2000"></textarea></label><span class="err" data-error-for="notes"></span>

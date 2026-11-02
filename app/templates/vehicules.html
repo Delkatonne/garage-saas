@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Véhicules{% endblock %}
+{% block content %}
+<section class="card">
+  <div class="toolbar"><h1>Véhicules</h1><a class="btn" href="/clients">Ajouter via un client</a></div>
+  <p class="muted">Pour enregistrer un nouveau véhicule, ouvrez d'abord la fiche de son propriétaire (ou créez le client).</p>
+  <form id="search-form" class="search" role="search">
+    <input id="q" type="search" placeholder="Immatriculation, marque, modèle, châssis…" aria-label="Rechercher un véhicule">
+    <select id="type" aria-label="Type">
+      <option value="">Tous types</option><option value="voiture">Voitures</option><option value="moto">Motos</option>
+      <option value="scooter">Scooters</option><option value="quad">Quads</option>
+    </select>
+    <select id="statut" aria-label="Afficher">
+      <option value="actifs">Actifs</option><option value="archives">Archivés</option><option value="tous">Tous</option>
+    </select>
+  </form>
+  <ul id="list" class="list"></ul>
+  <p id="empty" class="muted" hidden>Aucun véhicule trouvé.</p>
+  <div class="pager"><button class="btn btn-ghost" id="prev" type="button">Précédent</button><span id="page-info" class="muted"></span><button class="btn btn-ghost" id="next" type="button">Suivant</button></div>
+</section>
+{% endblock %}

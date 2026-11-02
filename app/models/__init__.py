@@ -9,3 +9,11 @@ from .identity import (  # noqa: F401
     RevokedToken,
     User,
 )
+from .clients import (  # noqa: F401
+    CARBURANTS,
+    CLIENT_TYPES,
+    VEHICULE_TYPES,
+    Client,
+    Vehicule,
+    VehiculeProprietaire,
+)

@@ -79,7 +79,12 @@ def register_garage(*, nom_garage, nom_chef_garage, email, password, logo_png=No
                     password_hash=hash_password(password), password_changed_at=utcnow())
         db.session.add(user)
         db.session.flush()
-        raw = issue_token(user, "verify_email", cfg["EMAIL_VERIFY_TTL"])
+        raw = None
+        if cfg["REQUIRE_EMAIL_VERIFICATION"]:
+            raw = issue_token(user, "verify_email", cfg["EMAIL_VERIFY_TTL"])
+        else:  # confirmation désactivée : le compte est utilisable tout de suite
+            garage.email_verifie = True
+            user.email_verifie = True
         audit("garage.inscription", garage_id=garage.id, user_id=user.id, entity_type="garage", entity_id=garage.id)
         try:
             db.session.commit()
@@ -94,7 +99,8 @@ def register_garage(*, nom_garage, nom_chef_garage, email, password, logo_png=No
             except Exception:  # noqa: BLE001
                 db.session.rollback()
                 current_app.logger.exception("Logo non enregistré à l'inscription")
-        mailer.send_verification_email(user, garage, raw)
+        if raw:
+            mailer.send_verification_email(user, garage, raw)
         return garage, user
 
 
@@ -154,9 +160,15 @@ def authenticate(email: str, password: str):
         db.session.commit()
         if not user.actif:
             raise ApiError("Ce compte est désactivé.", 403, "compte_desactive")
-        if not user.email_verifie:
-            raise ApiError("Veuillez confirmer votre email avant de vous connecter.", 403, "email_non_verifie")
         garage = db.session.get(Garage, user.garage_id)
+        if not user.email_verifie:
+            if current_app.config["REQUIRE_EMAIL_VERIFICATION"]:
+                raise ApiError("Veuillez confirmer votre email avant de vous connecter.", 403, "email_non_verifie")
+            # confirmation désactivée : on régularise les comptes créés avant ce changement
+            user.email_verifie = True
+            if user.role == "owner" and garage.email == user.email:
+                garage.email_verifie = True
+            db.session.commit()
         if (reason := garage.motif_blocage):
             raise ApiError(reason, 403, "garage_inactif")
         if needs_rehash(user.password_hash):
@@ -184,7 +196,7 @@ def authenticate_admin(email: str, password: str):
 def request_password_reset(email: str):
     with unscoped():
         user = db.session.scalar(sa.select(User).where(User.email == email))
-        if user and user.actif and user.email_verifie:
+        if user and user.actif and (user.email_verifie or not current_app.config["REQUIRE_EMAIL_VERIFICATION"]):
             raw = issue_token(user, "reset_password", current_app.config["PASSWORD_RESET_TTL"])
             audit("auth.reinitialisation_demandee", garage_id=user.garage_id, user_id=user.id)
             db.session.commit()

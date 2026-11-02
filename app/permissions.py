@@ -10,9 +10,9 @@ from .models import PlatformAdmin, User
 ROLE_PERMISSIONS = {
     "owner": {"*"},
     "receptionniste": {"clients.*", "vehicules.*", "or.*", "devis.*", "planning.*"},
-    "mecanicien": {"or.read", "or.update_status", "taches.*", "pointage.*"},
+    "mecanicien": {"or.read", "or.update_status", "taches.*", "pointage.*", "vehicules.read"},
     "magasinier": {"stock.*", "fournisseurs.*"},
-    "comptable": {"factures.*", "paiements.*", "depenses.*", "rapports.*", "caisse.*"},
+    "comptable": {"factures.*", "paiements.*", "depenses.*", "rapports.*", "caisse.*", "clients.read", "vehicules.read"},
 }
 
 

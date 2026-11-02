@@ -52,6 +52,19 @@ qu'une table sans `garage_id` fait échouer la suite.
 Erreurs : `{"erreur": "...", "code": "...", "details": {champ: message}}` (422 pour la validation, 401 générique pour les identifiants).
 Pour un client non navigateur, l'en-tête `Authorization: Bearer <access_token>` est accepté (pas de CSRF dans ce cas).
 
+## Fonctionnalités actuelles
+
+* **Phase 1** : comptes garages, connexion, mot de passe oublié, profil, logo, rôles.
+* **Phase 2, étape 1** : **clients** (particulier / entreprise / flotte, recherche, archivage, appel et WhatsApp en un clic) et **véhicules**
+  (voiture / moto / scooter / quad, immatriculation et châssis uniques par garage, kilométrage protégé contre les baisses,
+  changement de propriétaire avec historique). Pages : `/clients`, `/clients/<id>`, `/vehicules`, `/vehicules/<id>`.
+* À venir : ordres de réparation, devis, factures, paiements et reçus, stock.
+
+## Base de données sans terminal (Neon)
+
+Les fichiers `docs/sql/neon-phase1.sql` puis `docs/sql/neon-phase2-etape1.sql` sont à coller dans l'éditeur SQL de Neon, dans cet ordre,
+chacun une seule fois. Ils sont l'équivalent exact des migrations Alembic (`flask db upgrade`).
+
 ## Déploiement sur Vercel
 
 Tout (pages + API) tourne dans UNE fonction serverless Python : Vercel détecte Flask automatiquement grâce à `wsgi.py`
@@ -95,6 +108,8 @@ Ouvrir `/healthz` (doit répondre `{"statut": "ok"}`), puis tester inscription, 
 mot de passe oublié et logo.
 
 ## Points d'attention
+
+* **Confirmation de l'email désactivée par défaut** : le compte est utilisable dès l'inscription. Pour l'exiger, définir `REQUIRE_EMAIL_VERIFICATION=true` (un email avec lien est alors envoyé). L'email sert toujours à « mot de passe oublié » : une faute de frappe à l'inscription empêche de récupérer le compte.
 
 * **Logos en production : Cloudinary obligatoire** (pas de disque persistant sur Vercel).
 * **Emails envoyés pendant la requête** (pas de thread d'arrière-plan en serverless) ; un échec d'envoi est journalisé sans bloquer l'inscription.

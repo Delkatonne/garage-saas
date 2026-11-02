@@ -11,7 +11,7 @@
     </form>
     <button class="btn btn-ghost" id="logo-delete" type="button">Supprimer le logo</button>
   </div>
-  <form id="profile-form" data-api="/api/garage/profile" data-method="PATCH" data-json novalidate>
+  <form id="profile-form" data-api="/api/garage/profile" data-method="PATCH" data-json data-omit="email" novalidate>
     <label>Nom du garage<input name="nom_garage" maxlength="120"></label><span class="err" data-error-for="nom_garage"></span>
     <label>Chef de garage<input name="nom_chef_garage" maxlength="120"></label><span class="err" data-error-for="nom_chef_garage"></span>
     <label>Email (connexion)<input name="email" disabled></label>

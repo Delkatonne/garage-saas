@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Fiche véhicule{% endblock %}
+{% block content %}
+<section class="card">
+  <p><a href="/vehicules">&larr; Tous les véhicules</a></p>
+  <div class="toolbar"><h1 id="vehicule-titre">…</h1><span id="vehicule-badge" class="badge" hidden></span></div>
+  <p class="muted" id="vehicule-resume"></p>
+  <p>Propriétaire : <strong id="proprietaire">—</strong></p>
+  <p class="actions-left">
+    <button class="btn btn-ghost" id="btn-archive" type="button">Archiver</button>
+    <button class="btn btn-ghost" id="btn-restore" type="button" hidden>Restaurer</button>
+  </p>
+</section>
+<section class="card">
+  <h2>Changer de propriétaire</h2>
+  <p class="muted">L'ancien propriétaire reste dans l'historique du véhicule.</p>
+  <form id="transfer-form" data-success="reload" novalidate>
+    <label>Rechercher le nouveau propriétaire<input id="picker-q" type="search" placeholder="Nom ou téléphone…" autocomplete="off"></label>
+    <ul id="picker-results" class="list"></ul>
+    <input type="hidden" name="client_id">
+    <p id="picker-chosen" class="muted" hidden></p><span class="err" data-error-for="client_id"></span>
+    <button class="btn" type="submit" id="transfer-btn" disabled>Transférer le véhicule</button>
+  </form>
+</section>
+<section class="card">
+  <h2>Historique des propriétaires</h2>
+  <ul id="historique" class="list"></ul>
+</section>
+<section class="card">
+  <h2>Informations du véhicule</h2>
+  <form id="vehicule-form" data-method="PATCH" data-success="saved" novalidate>
+    {% include "_vehicule_fields.html" %}
+    <label class="check"><input name="corriger_kilometrage" type="checkbox"> Corriger une erreur de saisie du kilométrage (le kilométrage ne peut sinon pas diminuer)</label>
+    <button class="btn" type="submit">Enregistrer les modifications</button>
+  </form>
+</section>
+{% endblock %}

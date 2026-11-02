@@ -1,0 +1,16 @@
+<label>Type de client
+  <select name="type">
+    <option value="particulier">Particulier</option>
+    <option value="entreprise">Entreprise</option>
+    <option value="flotte">Flotte (plusieurs véhicules d'une société)</option>
+  </select>
+</label>
+<label data-only="societe" hidden>Raison sociale<input name="raison_sociale" maxlength="160"></label><span class="err" data-error-for="raison_sociale"></span>
+<label><span data-label="nom">Nom</span><input name="nom" maxlength="120" autocomplete="off"></label><span class="err" data-error-for="nom"></span>
+<label>Prénom<input name="prenom" maxlength="120" autocomplete="off"></label><span class="err" data-error-for="prenom"></span>
+<label>Téléphone<input name="telephone" type="tel" maxlength="30" autocomplete="off"></label><span class="err" data-error-for="telephone"></span>
+<label>WhatsApp (si différent)<input name="whatsapp" type="tel" maxlength="30" autocomplete="off"></label><span class="err" data-error-for="whatsapp"></span>
+<label>Email<input name="email" type="email" maxlength="255" autocomplete="off"></label><span class="err" data-error-for="email"></span>
+<label>Adresse<input name="adresse" maxlength="255"></label><span class="err" data-error-for="adresse"></span>
+<label>IFU (entreprises)<input name="ifu" maxlength="50"></label><span class="err" data-error-for="ifu"></span>
+<label>Notes<textarea name="notes" rows="3" maxlength="2000"></textarea></label><span class="err" data-error-for="notes"></span>

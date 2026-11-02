@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Fiche client{% endblock %}
+{% block content %}
+<section class="card">
+  <p><a href="/clients">&larr; Tous les clients</a></p>
+  <div class="toolbar"><h1 id="client-nom">…</h1><span id="client-badge" class="badge" hidden></span></div>
+  <p class="muted" id="client-resume"></p>
+  <p class="actions-left">
+    <a class="btn btn-ghost" id="btn-whatsapp" href="#" target="_blank" rel="noopener noreferrer" hidden>WhatsApp</a>
+    <a class="btn btn-ghost" id="btn-appeler" href="#" hidden>Appeler</a>
+    <button class="btn btn-ghost" id="btn-archive" type="button">Archiver</button>
+    <button class="btn btn-ghost" id="btn-restore" type="button" hidden>Restaurer</button>
+  </p>
+</section>
+<section class="card">
+  <div class="toolbar"><h2>Véhicules</h2><button class="btn" id="toggle-vehicule" type="button">+ Ajouter un véhicule</button></div>
+  <ul id="vehicules" class="list"></ul>
+  <p id="vehicules-empty" class="muted" hidden>Aucun véhicule pour ce client.</p>
+</section>
+<section class="card" id="vehicule-card" hidden>
+  <h2>Nouveau véhicule</h2>
+  <form id="vehicule-form" data-api="/api/vehicules" data-draft="vehicule-nouveau" data-success="goto-vehicule" novalidate>
+    <input type="hidden" name="client_id">
+    {% include "_vehicule_fields.html" %}
+    <button class="btn" type="submit">Enregistrer le véhicule</button>
+  </form>
+</section>
+<section class="card">
+  <h2>Informations du client</h2>
+  <form id="client-form" data-method="PATCH" data-success="saved" novalidate>
+    {% include "_client_fields.html" %}
+    <button class="btn" type="submit">Enregistrer les modifications</button>
+  </form>
+</section>
+{% endblock %}

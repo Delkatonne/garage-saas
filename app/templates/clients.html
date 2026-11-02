@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Clients{% endblock %}
+{% block content %}
+<section class="card">
+  <div class="toolbar"><h1>Clients</h1><button class="btn" id="toggle-new" type="button">+ Nouveau client</button></div>
+  <form id="search-form" class="search" role="search">
+    <input id="q" type="search" placeholder="Rechercher : nom, téléphone, email…" aria-label="Rechercher un client">
+    <select id="statut" aria-label="Afficher">
+      <option value="actifs">Actifs</option><option value="archives">Archivés</option><option value="tous">Tous</option>
+    </select>
+  </form>
+  <ul id="list" class="list"></ul>
+  <p id="empty" class="muted" hidden>Aucun client trouvé.</p>
+  <div class="pager"><button class="btn btn-ghost" id="prev" type="button">Précédent</button><span id="page-info" class="muted"></span><button class="btn btn-ghost" id="next" type="button">Suivant</button></div>
+</section>
+<section class="card" id="new-card" hidden>
+  <h2>Nouveau client</h2>
+  <form data-api="/api/clients" data-draft="client-nouveau" data-success="goto-client" novalidate>
+    {% include "_client_fields.html" %}
+    <button class="btn" type="submit">Enregistrer le client</button>
+  </form>
+</section>
+{% endblock %}

@@ -63,8 +63,10 @@ def register():
         raise validation_error(errors)
     svc.register_garage(nom_garage=nom_garage, nom_chef_garage=nom_chef, email=email,
                         password=pwd, logo_png=logo_png)
-    return jsonify({"message": "Compte créé. Un email de confirmation vous a été envoyé : "
-                               "cliquez sur le lien pour activer votre compte."}), 201
+    if current_app.config["REQUIRE_EMAIL_VERIFICATION"]:
+        return jsonify({"message": "Compte créé. Un email de confirmation vous a été envoyé : "
+                                   "cliquez sur le lien pour activer votre compte."}), 201
+    return jsonify({"message": "Compte créé. Vous pouvez vous connecter.", "redirect": "/connexion"}), 201
 
 
 @bp.post("/verify-email")

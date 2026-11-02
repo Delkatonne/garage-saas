@@ -19,6 +19,8 @@ PAGES = {
     "/verifier-email": ("verifier_email.html", "verifier-email"),
     "/tableau-de-bord": ("tableau_bord.html", "tableau-de-bord"),
     "/profil": ("profil.html", "profil"),
+    "/clients": ("clients.html", "clients"),
+    "/vehicules": ("vehicules.html", "vehicules"),
 }
 
 
@@ -32,6 +34,18 @@ def _make(template, page):
 
 for _path, (_tpl, _page) in PAGES.items():
     bp.add_url_rule(_path, view_func=_make(_tpl, _page))
+
+
+def _make_detail(template, page):
+    def view(**_ids):  # l'identifiant est relu par le JavaScript depuis l'adresse
+        return render_template(template, page=page)
+
+    view.__name__ = f"page_{page}"
+    return view
+
+
+bp.add_url_rule("/clients/<uuid:client_id>", view_func=_make_detail("client.html", "client"))
+bp.add_url_rule("/vehicules/<uuid:vehicule_id>", view_func=_make_detail("vehicule.html", "vehicule"))
 
 
 @bp.get("/sw.js")

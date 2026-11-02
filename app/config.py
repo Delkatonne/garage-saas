@@ -40,6 +40,8 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", SECRET_KEY)
     ON_VERCEL = bool(os.environ.get("VERCEL"))
+    # Confirmation de l'email à l'inscription : désactivée par défaut (REQUIRE_EMAIL_VERIFICATION=true pour l'exiger).
+    REQUIRE_EMAIL_VERIFICATION = os.environ.get("REQUIRE_EMAIL_VERIFICATION", "false").strip().lower() in ("1", "true", "yes", "oui")
     APP_BASE_URL = _default_base_url()
 
     SQLALCHEMY_DATABASE_URI = _database_url()
@@ -105,6 +107,7 @@ class TestConfig(Config):
     CLOUDINARY_URL = ""
     BREVO_API_KEY = ""   # les tests ne doivent jamais appeler Brevo, même si un .env local en définit une
     CRON_SECRET = ""
+    REQUIRE_EMAIL_VERIFICATION = True   # les tests existants couvrent le parcours avec confirmation
     JWT_COOKIE_SECURE = False
 
 
@@ -119,7 +122,7 @@ def get_config():
             raise RuntimeError("CLOUDINARY_URL doit être défini en production (stockage des logos).")
         if not (cfg.BREVO_API_KEY or cfg.MAIL_SERVER):
             raise RuntimeError("BREVO_API_KEY (ou MAIL_SERVER) doit être défini en production : sans email, "
-                               "personne ne peut confirmer son compte.")
+                               "personne ne peut réinitialiser son mot de passe.")
         if cfg.APP_BASE_URL.startswith("http://localhost"):
             raise RuntimeError("APP_BASE_URL doit être défini en production (liens des emails).")
     return cfg

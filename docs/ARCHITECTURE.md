@@ -168,3 +168,15 @@ pas d'écriture sur le disque (fichiers = Cloudinary), durée maximale par requ�
 * **Véhicule revenu pour le même problème** : `reclamations` rattachées à l'OR d'origine, détection par véhicule + catégorie dans la garantie.
 * **Urgences** : drapeau `urgent` sur OR/rendez-vous, insertion dans le planning avec signalement des rendez-vous décalés.
 * **Voiture/moto** : `type_vehicule` sur véhicules, pièces et compatibilités ; catalogue et outillage filtrés par type.
+
+
+## Phase 2, étape 1 : clients et véhicules (implémenté)
+
+* Tables `clients`, `vehicules`, `vehicule_proprietaires` (héritent de `TenantMixin`). Pas de suppression : archivage (`actif = false`).
+* Unicité par garage : `immatriculation_cle` (immatriculation normalisée) et `vin` (index unique partiel, NULL autorisé).
+  Une seule ligne de propriétaire « ouverte » (`date_fin IS NULL`) par véhicule : index unique partiel.
+* API : `/api/clients` et `/api/vehicules` (liste paginée + recherche, création, détail, modification, archivage/restauration,
+  `POST /api/vehicules/<id>/transfer`). Le `garage_id` n'est jamais lu depuis la requête ; un `client_id` d'un autre garage est « introuvable ».
+* Permissions : `clients.*` et `vehicules.*` (propriétaire, réceptionniste), lecture seule pour le comptable (clients, véhicules)
+  et le mécanicien (véhicules).
+* Non fait volontairement à ce stade : `contacts_client` (contacts multiples d'une flotte), fusion de doublons.

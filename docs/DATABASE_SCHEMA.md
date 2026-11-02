@@ -39,8 +39,8 @@ or_lignes ─> garanties ─> reclamations        vehicules 1─* rappels_entret
 ## 2. Clients et véhicules
 
 * **clients** : type (particulier/entreprise/flotte), nom, prenom, raison_sociale, telephone, whatsapp, email, adresse, ifu, notes, actif. Index (garage_id, telephone), (garage_id, nom).
-* **contacts_client** (flotte/entreprise) : client_id, nom, fonction, telephone, email.
-* **vehicules** : type (voiture/moto/scooter/quad), marque, modele, version, immatriculation, vin, annee, couleur, carburant, cylindree_cc, kilometrage_actuel, notes, actif. `UNIQUE (garage_id, immatriculation)`, `UNIQUE (garage_id, vin) WHERE vin IS NOT NULL`.
+* **contacts_client** (flotte/entreprise, *pas encore implémenté*) : client_id, nom, fonction, telephone, email.
+* **vehicules** : type (voiture/moto/scooter/quad), marque, modele, version, immatriculation, `immatriculation_cle` (lettres et chiffres seulement : sert à l'unicité, "AB 1234 RB" = "ab-1234-rb"), vin, annee, couleur, carburant, cylindree_cc, kilometrage_actuel, notes, actif. `UNIQUE (garage_id, immatriculation)`, `UNIQUE (garage_id, vin) WHERE vin IS NOT NULL`.
 * **vehicule_proprietaires** : vehicule_id, client_id, date_debut, date_fin (NULL = propriétaire actuel). Une seule ligne ouverte par véhicule (index unique partiel). Un véhicule peut changer de propriétaire sans perdre son historique.
 
 ## 3. Accueil et ordres de réparation
