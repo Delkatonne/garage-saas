@@ -21,6 +21,8 @@ PAGES = {
     "/profil": ("profil.html", "profil"),
     "/clients": ("clients.html", "clients"),
     "/vehicules": ("vehicules.html", "vehicules"),
+    "/devis": ("devis.html", "devis"),
+    "/devis/nouveau": ("devis_editeur.html", "devis-editeur"),
 }
 
 
@@ -36,16 +38,18 @@ for _path, (_tpl, _page) in PAGES.items():
     bp.add_url_rule(_path, view_func=_make(_tpl, _page))
 
 
-def _make_detail(template, page):
+def _detail(rule, endpoint, template, page):
     def view(**_ids):  # l'identifiant est relu par le JavaScript depuis l'adresse
         return render_template(template, page=page)
 
-    view.__name__ = f"page_{page}"
-    return view
+    bp.add_url_rule(rule, endpoint=endpoint, view_func=view)
 
 
-bp.add_url_rule("/clients/<uuid:client_id>", view_func=_make_detail("client.html", "client"))
-bp.add_url_rule("/vehicules/<uuid:vehicule_id>", view_func=_make_detail("vehicule.html", "vehicule"))
+_detail("/clients/<uuid:client_id>", "page_client", "client.html", "client")
+_detail("/vehicules/<uuid:vehicule_id>", "page_vehicule", "vehicule.html", "vehicule")
+_detail("/devis/<uuid:devis_id>", "page_devis_fiche", "devis_fiche.html", "devis-fiche")
+_detail("/devis/<uuid:devis_id>/modifier", "page_devis_modifier", "devis_editeur.html", "devis-editeur")
+_detail("/d/<token>", "page_devis_public", "devis_public.html", "devis-public")  # lien envoyé au client
 
 
 @bp.get("/sw.js")

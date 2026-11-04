@@ -168,3 +168,22 @@ def long_text(data, field, errors, *, max_len=2000, label=None):
     else:
         return value
     return None
+
+
+def decimal_value(value, *, label, minimum, maximum, places):
+    """Convertit une saisie (nombre ou texte) en Decimal borné, ou lève ValueError avec un message lisible."""
+    from decimal import Decimal, InvalidOperation
+
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise ValueError(f"{label} est invalide.")
+    try:
+        number = Decimal(str(value).strip().replace(",", ".").replace(" ", ""))
+    except InvalidOperation:
+        raise ValueError(f"{label} doit être un nombre.")
+    if not number.is_finite():
+        raise ValueError(f"{label} doit être un nombre.")
+    if number != number.quantize(Decimal(1).scaleb(-places)):
+        raise ValueError(f"{label} : {places} décimale(s) maximum.")
+    if not Decimal(str(minimum)) <= number <= Decimal(str(maximum)):
+        raise ValueError(f"{label} doit être compris entre {minimum} et {maximum}.")
+    return number

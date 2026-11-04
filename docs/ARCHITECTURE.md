@@ -180,3 +180,22 @@ pas d'écriture sur le disque (fichiers = Cloudinary), durée maximale par requ�
 * Permissions : `clients.*` et `vehicules.*` (propriétaire, réceptionniste), lecture seule pour le comptable (clients, véhicules)
   et le mécanicien (véhicules).
 * Non fait volontairement à ce stade : `contacts_client` (contacts multiples d'une flotte), fusion de doublons.
+
+
+## Phase 2, étape 2 : devis (implémenté)
+
+* Tables `devis`, `devis_lignes`, `sequences_documents` (héritent de `TenantMixin`).
+* **Montants** : toujours recalculés côté serveur (`services/devis_calc.py`, `Decimal`, arrondi commercial à la décimale de la devise).
+  Prix saisis HT ; TVA (taux et activation) prise dans le profil du garage, **un seul taux par devis** (écart volontaire avec le schéma cible,
+  qui prévoyait un taux par ligne). Un brouillon suit le profil du garage ; l'envoi fige devise, décimales et TVA.
+* **Numérotation** (`services/numbering.py`) : `DEV-AAAA-NNNN` par garage et par année, attribuée **à l'envoi** (un brouillon n'a pas de numéro,
+  donc supprimer un brouillon ne crée pas de trou). Compteur incrémenté sous verrou de ligne (`SELECT ... FOR UPDATE`) dans la transaction d'envoi.
+* **Cycle de vie** : brouillon -> envoyé -> accepté / refusé ; `expire` est calculé (envoyé + validité dépassée) ; `remplace` quand une nouvelle
+  version est envoyée. Un devis envoyé n'est plus modifiable : on crée une nouvelle version (même numéro de base, suffixe `-V2`, `-V3`...).
+* **Lien client** : `POST /api/devis/<id>/public-link` retourne `/d/<secret>` ; en base, seule l'empreinte SHA-256 (`token_public_hash`).
+  Routes publiques `/api/public/devis/<secret>` (consultation, PDF, accepter, refuser) : limitées en fréquence, aucune donnée interne
+  renvoyée, accès aux données du garage limité au seul devis désigné par le secret (`unscoped()` + filtre explicite).
+* **PDF** : ReportLab, texte échappé, filigrane « BROUILLON », logo (Cloudinary) facultatif, bloc « Bon pour accord ».
+* Permissions : `devis.*` (propriétaire, réceptionniste) ; lecture seule pour le comptable.
+* Non fait volontairement à ce stade : signature manuscrite, QR code, catalogue de forfaits/pièces (arrive avec le stock), envoi automatique par email/SMS,
+  transformation en ordre de réparation (étape suivante).

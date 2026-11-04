@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Votre devis{% endblock %}
+{% block content %}
+<section class="card">
+  <div class="garage-head"><div id="logo" class="logo" aria-hidden="true"></div>
+    <div><h1 id="garage-nom">…</h1><p class="muted" id="garage-contact"></p></div></div>
+</section>
+<section class="card" id="devis-card" hidden>
+  <div class="toolbar"><h2 id="devis-titre">Devis</h2><span id="devis-badge" class="badge"></span></div>
+  <p class="muted" id="devis-resume"></p>
+  <p id="devis-pour"></p>
+  <div class="table-wrap"><table class="table" id="lignes-table"></table></div>
+  <div id="totaux" class="totals"></div>
+  <h3>Conditions</h3>
+  <p class="pre" id="devis-conditions"></p>
+  <p><a class="btn btn-ghost" id="pdf-link" href="#" target="_blank" rel="noopener noreferrer">Télécharger en PDF</a></p>
+</section>
+<section class="card" id="reponse-card" hidden>
+  <h2>Votre réponse</h2>
+  <label>Votre nom<input id="reponse-nom" maxlength="120" autocomplete="name"></label>
+  <span class="err" id="reponse-erreur"></span>
+  <p class="actions-left"><button class="btn" id="btn-accepter" type="button">J'accepte ce devis</button><button class="btn btn-ghost" id="btn-refuser" type="button">Je refuse</button></p>
+</section>
+{% endblock %}

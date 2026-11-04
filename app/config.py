@@ -40,6 +40,7 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", SECRET_KEY)
     ON_VERCEL = bool(os.environ.get("VERCEL"))
+    DEVIS_VALIDITE_JOURS = int(os.environ.get("DEVIS_VALIDITE_JOURS", "30"))
     # Confirmation de l'email à l'inscription : désactivée par défaut (REQUIRE_EMAIL_VERIFICATION=true pour l'exiger).
     REQUIRE_EMAIL_VERIFICATION = os.environ.get("REQUIRE_EMAIL_VERIFICATION", "false").strip().lower() in ("1", "true", "yes", "oui")
     APP_BASE_URL = _default_base_url()

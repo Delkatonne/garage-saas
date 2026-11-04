@@ -12,7 +12,7 @@ ROLE_PERMISSIONS = {
     "receptionniste": {"clients.*", "vehicules.*", "or.*", "devis.*", "planning.*"},
     "mecanicien": {"or.read", "or.update_status", "taches.*", "pointage.*", "vehicules.read"},
     "magasinier": {"stock.*", "fournisseurs.*"},
-    "comptable": {"factures.*", "paiements.*", "depenses.*", "rapports.*", "caisse.*", "clients.read", "vehicules.read"},
+    "comptable": {"factures.*", "paiements.*", "depenses.*", "rapports.*", "caisse.*", "clients.read", "vehicules.read", "devis.read"},
 }
 
 

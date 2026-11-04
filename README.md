@@ -58,11 +58,14 @@ Pour un client non navigateur, l'en-tête `Authorization: Bearer <access_token>`
 * **Phase 2, étape 1** : **clients** (particulier / entreprise / flotte, recherche, archivage, appel et WhatsApp en un clic) et **véhicules**
   (voiture / moto / scooter / quad, immatriculation et châssis uniques par garage, kilométrage protégé contre les baisses,
   changement de propriétaire avec historique). Pages : `/clients`, `/clients/<id>`, `/vehicules`, `/vehicules/<id>`.
-* À venir : ordres de réparation, devis, factures, paiements et reçus, stock.
+* **Phase 2, étape 2** : **devis** (`/devis`) : lignes de main-d'œuvre, pièces, forfaits, remises par ligne et globale, TVA du garage,
+  numérotation `DEV-2026-0001` attribuée à l'envoi (aucun trou), validité, nouvelles versions (`-V2`...), PDF avec logo, lien à envoyer au
+  client (WhatsApp) pour qu'il consulte, télécharge et accepte ou refuse le devis sans compte.
+* À venir : ordres de réparation, factures, paiements et reçus, stock.
 
 ## Base de données sans terminal (Neon)
 
-Les fichiers `docs/sql/neon-phase1.sql` puis `docs/sql/neon-phase2-etape1.sql` sont à coller dans l'éditeur SQL de Neon, dans cet ordre,
+Les fichiers `docs/sql/neon-phase1.sql`, `neon-phase2-etape1.sql` puis `neon-phase2-etape2-devis.sql` sont à coller dans l'éditeur SQL de Neon, dans cet ordre,
 chacun une seule fois. Ils sont l'équivalent exact des migrations Alembic (`flask db upgrade`).
 
 ## Déploiement sur Vercel
@@ -115,6 +118,8 @@ mot de passe oublié et logo.
 * **Emails envoyés pendant la requête** (pas de thread d'arrière-plan en serverless) ; un échec d'envoi est journalisé sans bloquer l'inscription.
 * **Limitation des tentatives** : sans Redis (`RATELIMIT_STORAGE_URI`), chaque instance compte de son côté. Le verrouillage par compte reste efficace (stocké en base).
 * **Cron** : `/api/cron/purge-tokens` (chaque jour à 03:00 UTC) supprime les jetons expirés ; la route répond 404 sans `CRON_SECRET`.
+* **PDF** : générés avec ReportLab (Python pur). Le logo est téléchargé depuis Cloudinary au moment du PDF ; s'il est inaccessible, le PDF est produit sans logo.
+* **Lien client d'un devis** : secret aléatoire de 256 bits (seule son empreinte est stockée) ; un nouveau lien remplace l'ancien ; routes publiques limitées en fréquence.
 * L'essai dure 30 jours (`TRIAL_DAYS`) ; à son terme la connexion est refusée tant que le super-admin n'active pas l'abonnement.
 * Le plan gratuit de Vercel (Hobby) est réservé à un usage non commercial : vérifier les conditions avant d'accueillir des garages payants.
 * Le changement d'email du garage (qui sert à la connexion) n'est volontairement pas dans le profil : il demandera un flux de reconfirmation dédié.

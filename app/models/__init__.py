@@ -17,3 +17,10 @@ from .clients import (  # noqa: F401
     Vehicule,
     VehiculeProprietaire,
 )
+from .devis import (  # noqa: F401
+    DEVIS_STATUTS,
+    LIGNE_TYPES,
+    Devis,
+    DevisLigne,
+    SequenceDocument,
+)

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Devis{% endblock %}
+{% block content %}
+<section class="card">
+  <div class="toolbar"><h1>Devis</h1><a class="btn" href="/devis/nouveau">+ Nouveau devis</a></div>
+  <form id="search-form" class="search" role="search">
+    <input id="q" type="search" placeholder="Numéro ou nom du client…" aria-label="Rechercher un devis">
+    <select id="statut" aria-label="Statut">
+      <option value="tous">Tous</option><option value="brouillon">Brouillons</option><option value="envoye">Envoyés</option>
+      <option value="accepte">Acceptés</option><option value="refuse">Refusés</option><option value="expire">Expirés</option><option value="remplace">Remplacés</option>
+    </select>
+  </form>
+  <ul id="list" class="list"></ul>
+  <p id="empty" class="muted" hidden>Aucun devis trouvé.</p>
+  <div class="pager"><button class="btn btn-ghost" id="prev" type="button">Précédent</button><span id="page-info" class="muted"></span><button class="btn btn-ghost" id="next" type="button">Suivant</button></div>
+</section>
+{% endblock %}

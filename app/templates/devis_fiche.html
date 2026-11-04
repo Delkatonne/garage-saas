@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Fiche devis{% endblock %}
+{% block content %}
+<section class="card">
+  <p><a href="/devis">&larr; Tous les devis</a></p>
+  <div class="toolbar"><h1 id="devis-titre">…</h1><span id="devis-badge" class="badge"></span></div>
+  <p class="muted" id="devis-resume"></p>
+  <p>Client : <strong id="devis-client">—</strong><br>Véhicule : <strong id="devis-vehicule">—</strong></p>
+  <p id="devis-acceptation" class="muted" hidden></p>
+  <p id="actions" class="actions-left"></p>
+  <div id="lien-box" class="linkbox" hidden>
+    <p><strong>Lien à envoyer au client</strong> (il pourra consulter, télécharger et accepter le devis) :</p>
+    <p id="lien-url"></p>
+    <p class="actions-left"><button class="btn btn-ghost" id="lien-copier" type="button">Copier</button><a class="btn" id="lien-whatsapp" href="#" target="_blank" rel="noopener noreferrer">Envoyer sur WhatsApp</a></p>
+    <p class="muted">Un nouveau lien remplace l'ancien : l'ancien cesse de fonctionner.</p>
+  </div>
+</section>
+<section class="card">
+  <h2>Détail</h2>
+  <div class="table-wrap"><table class="table" id="lignes-table"></table></div>
+  <div id="totaux" class="totals"></div>
+  <h3>Conditions</h3>
+  <p class="pre" id="devis-conditions"></p>
+</section>
+{% endblock %}

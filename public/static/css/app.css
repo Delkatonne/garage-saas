@@ -40,3 +40,19 @@ a{color:var(--c)}
 .badge{background:#fef3c7;color:#92400e;border-radius:999px;padding:.1rem .6rem;font-size:.8rem;font-weight:600}
 .pager{display:flex;justify-content:space-between;align-items:center;gap:.5rem}.pager .btn{margin-top:0;padding:.45rem .9rem}.pager .btn:disabled{opacity:.4;cursor:default}
 .linklike{display:block;width:100%;text-align:left;background:none;border:0;padding:.6rem .25rem;font:inherit;color:var(--c);cursor:pointer}.linklike:hover{background:#f7fafa}
+
+.table{width:100%;border-collapse:collapse;font-size:.95rem}
+.table th,.table td{padding:.45rem .35rem;border-bottom:1px solid #eef0f2;text-align:left;vertical-align:top}
+.table th{font-size:.8rem;color:var(--mu);font-weight:600}
+.num{text-align:right!important;white-space:nowrap}
+.table-wrap{overflow-x:auto}
+.lines input,.lines select{margin:0;min-width:70px;padding:.45rem .5rem}
+.lines .col-des input{min-width:190px}
+.lines .linklike{width:auto;padding:.3rem .5rem;color:var(--er)}
+.totals{max-width:340px;margin:.75rem 0 .75rem auto}
+.totals div{display:flex;justify-content:space-between;gap:1rem;padding:.15rem 0}
+.totals .grand{font-weight:700;border-top:2px solid var(--c);margin-top:.3rem;padding-top:.4rem}
+.badge.ok{background:#dcfce7;color:#166534}.badge.bad{background:#fee2e2;color:#991b1b}
+.badge.info{background:#dbeafe;color:#1e40af}.badge.muted2{background:#f3f4f6;color:#374151}
+.linkbox{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.75rem;margin:.75rem 0;word-break:break-all}
+.pre{white-space:pre-line}
