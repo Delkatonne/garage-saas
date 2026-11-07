@@ -17,6 +17,7 @@ from app.extensions import db, limiter
 from app.models import Client, Devis, Garage, Vehicule, utcnow
 from app.serializers import devis_public_dict
 from app.services.audit import audit
+from app.services.or_workflow import auto_status_for_devis
 from app.services.pdf_devis import pdf_response
 from app.tenancy import unscoped
 
@@ -85,6 +86,7 @@ def accept(devis):
     devis.acceptation_ip = (request.remote_addr or "")[:45]
     audit("devis.accepte_par_client", garage_id=devis.garage_id, entity_type="devis", entity_id=devis.id,
           details={"nom": nom})
+    auto_status_for_devis(devis, "devis_accepte", f"Devis {devis.numero} accepté par le client", None)
     db.session.commit()
     return jsonify({"message": "Merci ! Votre accord a bien été enregistré. Le garage va vous contacter."})
 

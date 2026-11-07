@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Réparations{% endblock %}
+{% block content %}
+<section class="card">
+  <div class="toolbar"><h1>Ordres de réparation</h1><a class="btn" id="btn-nouveau" href="/or/nouveau">+ Nouvel ordre</a></div>
+  <form id="search-form" class="search" role="search">
+    <input id="q" type="search" placeholder="N°, immatriculation, client, motif…" aria-label="Rechercher un ordre">
+    <select id="statut" aria-label="Statut">
+      <option value="ouverts">En cours</option><option value="tous">Tous</option>
+      <option value="en_attente">En attente</option><option value="diagnostic">Diagnostic</option>
+      <option value="devis_envoye">Devis envoyé</option><option value="devis_accepte">Devis accepté</option>
+      <option value="en_cours">Travaux en cours</option><option value="attente_pieces">Attente de pièces</option>
+      <option value="termine">Terminés</option><option value="livre">Livrés</option><option value="annule">Annulés</option>
+    </select>
+    <label class="check"><input type="checkbox" id="mes"> Mes ordres</label>
+  </form>
+  <ul id="list" class="list"></ul>
+  <p id="empty" class="muted" hidden>Aucun ordre de réparation trouvé.</p>
+  <div class="pager"><button class="btn btn-ghost" id="prev" type="button">Précédent</button><span id="page-info" class="muted"></span><button class="btn btn-ghost" id="next" type="button">Suivant</button></div>
+</section>
+{% endblock %}

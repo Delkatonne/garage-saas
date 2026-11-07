@@ -13,12 +13,14 @@ from app import validators as v
 from app.api._common import json_body, pagination
 from app.errors import ApiError, validation_error
 from app.extensions import db
-from app.models import LIGNE_TYPES, Client, Devis, DevisLigne, Garage, Vehicule, as_utc, utcnow
+from app.models import (LIGNE_TYPES, OR_FERMES, Client, Devis, DevisLigne, Garage, OrdreReparation, Vehicule,
+                        as_utc, utcnow)
 from app.permissions import require_permission
 from app.serializers import devis_dict
 from app.services import devis_calc as calc
 from app.services.audit import audit
 from app.services.numbering import next_number
+from app.services.or_workflow import auto_status_for_devis
 from app.services.pdf_devis import pdf_response
 from app.tenancy import unscoped
 
@@ -52,6 +54,12 @@ def _vehicule(devis):
     return db.session.scalar(sa.select(Vehicule).where(Vehicule.id == devis.vehicule_id))
 
 
+def _ordre(devis):
+    if not devis.or_id:
+        return None
+    return db.session.scalar(sa.select(OrdreReparation).where(OrdreReparation.id == devis.or_id))
+
+
 def _uuid(value):
     try:
         return uuid.UUID(str(value))
@@ -80,6 +88,18 @@ def _find_vehicule(value, errors):
         errors["vehicule_id"] = "Ce véhicule est archivé."
     else:
         return vehicule
+    return None
+
+
+def _find_or(value, errors):
+    oid = _uuid(value)
+    ordre = db.session.scalar(sa.select(OrdreReparation).where(OrdreReparation.id == oid)) if oid else None
+    if ordre is None:
+        errors["or_id"] = "Ordre de réparation introuvable."
+    elif ordre.statut in OR_FERMES:
+        errors["or_id"] = "Cet ordre de réparation est clos."
+    else:
+        return ordre
     return None
 
 
@@ -157,7 +177,7 @@ def _require_draft(devis):
 
 
 def _full(devis):
-    return devis_dict(devis, _client(devis), _vehicule(devis))
+    return devis_dict(devis, _client(devis), _vehicule(devis), ordre=_ordre(devis))
 
 
 # ------------------------------------------------------------------ liste, création, détail
@@ -207,13 +227,18 @@ def create_devis():
     errors = {}
     client = _find_client(data.get("client_id"), errors)
     vehicule = _find_vehicule(data["vehicule_id"], errors) if data.get("vehicule_id") else None
+    ordre = _find_or(data["or_id"], errors) if data.get("or_id") else None
+    if ordre is not None and client is not None and ordre.client_id != client.id:
+        errors["or_id"] = "Cet ordre de réparation concerne un autre client."
+    if ordre is not None and vehicule is None and "vehicule_id" not in errors:
+        vehicule = db.session.scalar(sa.select(Vehicule).where(Vehicule.id == ordre.vehicule_id))
     remise = _remise(data, errors)
     lignes = _parse_lignes(data.get("lignes"), garage.devise_decimales, errors)
     conditions = v.long_text(data, "conditions", errors, label="Les conditions") if "conditions" in data else DEFAULT_CONDITIONS
     if errors:
         raise validation_error(errors)
     devis = Devis(client_id=client.id, vehicule_id=vehicule.id if vehicule else None, statut="brouillon", version=1,
-                  conditions=conditions, remise_globale=remise, cree_par_id=current_user.id)
+                  or_id=ordre.id if ordre else None, conditions=conditions, remise_globale=remise, cree_par_id=current_user.id)
     _snapshot(devis, garage)
     _set_lignes(devis, lignes)
     _recompute(devis)
@@ -328,6 +353,7 @@ def send_devis(devis_id):
     devis.statut, devis.date_emission, devis.date_validite = "envoye", now, now + timedelta(days=jours)
     audit("devis.envoye", garage_id=current_user.garage_id, user_id=current_user.id, entity_type="devis",
           entity_id=devis.id, details={"numero": devis.numero})
+    auto_status_for_devis(devis, "devis_envoye", f"Devis {devis.numero} envoyé", current_user.id)
     _commit()
     return jsonify({"devis": _full(devis)})
 
@@ -342,7 +368,7 @@ def new_version(devis_id):
     if pending is not None:
         return jsonify({"devis": _full(pending)})  # déjà une version en préparation : on la retrouve
     garage = _garage()
-    new = Devis(client_id=src.client_id, vehicule_id=src.vehicule_id, statut="brouillon", version=src.version + 1,
+    new = Devis(client_id=src.client_id, vehicule_id=src.vehicule_id, or_id=src.or_id, statut="brouillon", version=src.version + 1,
                 devis_parent_id=src.id, conditions=src.conditions, remise_globale=src.remise_globale,
                 cree_par_id=current_user.id)
     _snapshot(new, garage)
@@ -377,6 +403,7 @@ def accept_devis(devis_id):
         raise validation_error(errors)
     devis.statut, devis.accepte_le, devis.acceptation_nom, devis.acceptation_mode = "accepte", utcnow(), nom, "atelier"
     audit("devis.accepte", garage_id=current_user.garage_id, user_id=current_user.id, entity_type="devis", entity_id=devis.id)
+    auto_status_for_devis(devis, "devis_accepte", f"Devis {devis.numero} accepté", current_user.id)
     _commit()
     return jsonify({"devis": _full(devis)})
 

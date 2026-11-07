@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Nouvel ordre de réparation{% endblock %}
+{% block content %}
+<section class="card">
+  <p><a href="/or">&larr; Tous les ordres</a></p>
+  <h1>Nouvel ordre de réparation</h1>
+  <form id="or-form" novalidate>
+    <h2>Véhicule</h2>
+    <p id="vehicule-chosen" class="muted">Aucun véhicule choisi.</p>
+    <label id="client-vehicules-label" hidden>Véhicules du client<select id="client-vehicules"><option value="">— Choisir —</option></select></label>
+    <label>Rechercher un véhicule<input id="picker-q" type="search" placeholder="Immatriculation, marque, modèle…" autocomplete="off"></label>
+    <ul id="picker-results" class="list"></ul>
+    <input type="hidden" name="vehicule_id"><span class="err" data-error-for="vehicule_id"></span><span class="err" data-error-for="client_id"></span>
+
+    <h2>Accueil</h2>
+    <label>Motif de la visite<input name="motif" maxlength="255" placeholder="Ex. Bruit au freinage"></label><span class="err" data-error-for="motif"></span>
+    <label>Symptômes décrits par le client<textarea name="symptomes" rows="3" maxlength="2000"></textarea></label><span class="err" data-error-for="symptomes"></span>
+    <label>Kilométrage à l'entrée<input name="kilometrage_entree" type="number" min="0" inputmode="numeric"></label><span class="err" data-error-for="kilometrage_entree"></span>
+    <label>Niveau de carburant
+      <select name="niveau_carburant"><option value="">Non relevé</option><option value="0">Vide</option><option value="25">1/4</option><option value="50">1/2</option><option value="75">3/4</option><option value="100">Plein</option></select>
+    </label><span class="err" data-error-for="niveau_carburant"></span>
+    <label>État du véhicule à l'arrivée (rayures, objets laissés…)<textarea name="etat_arrivee" rows="3" maxlength="2000"></textarea></label><span class="err" data-error-for="etat_arrivee"></span>
+    <label>Sortie prévue<input name="date_sortie_prevue" type="date"></label><span class="err" data-error-for="date_sortie_prevue"></span>
+    <label>Mécanicien<select name="mecanicien_id"><option value="">— Non affecté —</option></select></label><span class="err" data-error-for="mecanicien_id"></span>
+    <label class="check"><input name="urgent" type="checkbox"> Urgent</label>
+    <button class="btn" type="submit" id="or-submit">Créer l'ordre de réparation</button>
+  </form>
+</section>
+{% endblock %}

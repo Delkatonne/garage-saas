@@ -28,6 +28,7 @@ class Devis(UUIDPk, TenantMixin, Timestamps, db.Model):
     devis_parent_id = db.Column(Uuid, ForeignKey("devis.id"))
     client_id = db.Column(Uuid, ForeignKey("clients.id"), nullable=False, index=True)
     vehicule_id = db.Column(Uuid, ForeignKey("vehicules.id"), index=True)
+    or_id = db.Column(Uuid, ForeignKey("ordres_reparation.id"), index=True)  # ordre de réparation lié (facultatif)
     statut = db.Column(db.String(20), nullable=False, default="brouillon")
     date_emission = db.Column(DateTime(timezone=True))
     date_validite = db.Column(DateTime(timezone=True))
