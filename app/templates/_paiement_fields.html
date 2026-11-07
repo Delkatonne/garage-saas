@@ -1,0 +1,10 @@
+<label>Montant<input name="montant" type="number" min="0" step="any" inputmode="decimal"></label><span class="err" data-error-for="montant"></span>
+<label>Moyen de paiement
+  <select name="moyen">
+    <option value="especes">Espèces</option><option value="momo_mtn">MTN MoMo</option><option value="momo_moov">Moov Money</option>
+    <option value="momo_celtiis">Celtiis Cash</option><option value="virement">Virement</option><option value="carte">Carte bancaire</option>
+    <option value="cheque">Chèque</option><option value="autre">Autre</option>
+  </select>
+</label><span class="err" data-error-for="moyen"></span>
+<label>Référence de la transaction (facultatif)<input name="reference_transaction" maxlength="100" autocomplete="off"></label><span class="err" data-error-for="reference_transaction"></span>
+<label>Date du paiement (aujourd'hui si vide)<input name="date_paiement" type="date"></label><span class="err" data-error-for="date_paiement"></span>

@@ -56,3 +56,21 @@ a{color:var(--c)}
 .badge.info{background:#dbeafe;color:#1e40af}.badge.muted2{background:#f3f4f6;color:#374151}
 .linkbox{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.75rem;margin:.75rem 0;word-break:break-all}
 .pre{white-space:pre-line}
+
+/* Menu : barre horizontale sur ordinateur, menu hamburger sur téléphone */
+.topbar{position:relative}
+.menu-toggle{display:none;background:none;border:0;padding:.5rem;cursor:pointer;flex-direction:column;gap:5px;min-width:44px;min-height:44px;align-items:center;justify-content:center}
+.menu-toggle span{display:block;width:24px;height:3px;background:#fff;border-radius:2px;transition:transform .2s,opacity .2s}
+.topbar.open .menu-toggle span:nth-child(1){transform:translateY(8px) rotate(45deg)}
+.topbar.open .menu-toggle span:nth-child(2){opacity:0}
+.topbar.open .menu-toggle span:nth-child(3){transform:translateY(-8px) rotate(-45deg)}
+#nav a[aria-current=page]{font-weight:700;text-decoration:underline}
+@media (max-width:760px){
+  .menu-toggle{display:flex}
+  #nav{display:none;position:absolute;top:100%;left:0;right:0;flex-direction:column;gap:0;background:var(--c);box-shadow:0 8px 16px rgba(0,0,0,.25);z-index:30;padding-bottom:.5rem}
+  .topbar.open #nav{display:flex}
+  #nav a{padding:.9rem 1.25rem;border-top:1px solid rgba(255,255,255,.18);font-size:1.05rem;text-decoration:none!important}
+  #nav a[aria-current=page]{background:rgba(255,255,255,.16)}
+}
+
+.strike{text-decoration:line-through}

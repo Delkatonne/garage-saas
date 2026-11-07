@@ -23,6 +23,10 @@ PAGES = {
     "/vehicules": ("vehicules.html", "vehicules"),
     "/devis": ("devis.html", "devis"),
     "/devis/nouveau": ("devis_editeur.html", "devis-editeur"),
+    "/or": ("or.html", "or"),
+    "/or/nouveau": ("or_nouveau.html", "or-nouveau"),
+    "/factures": ("factures.html", "factures"),
+    "/factures/nouveau": ("facture_editeur.html", "facture-editeur"),
 }
 
 
@@ -49,6 +53,9 @@ _detail("/clients/<uuid:client_id>", "page_client", "client.html", "client")
 _detail("/vehicules/<uuid:vehicule_id>", "page_vehicule", "vehicule.html", "vehicule")
 _detail("/devis/<uuid:devis_id>", "page_devis_fiche", "devis_fiche.html", "devis-fiche")
 _detail("/devis/<uuid:devis_id>/modifier", "page_devis_modifier", "devis_editeur.html", "devis-editeur")
+_detail("/or/<uuid:or_id>", "page_or_fiche", "or_fiche.html", "or-fiche")
+_detail("/factures/<uuid:facture_id>", "page_facture_fiche", "facture_fiche.html", "facture-fiche")
+_detail("/factures/<uuid:facture_id>/modifier", "page_facture_modifier", "facture_editeur.html", "facture-editeur")
 _detail("/d/<token>", "page_devis_public", "devis_public.html", "devis-public")  # lien envoyé au client
 
 

@@ -199,3 +199,51 @@ pas d'écriture sur le disque (fichiers = Cloudinary), durée maximale par requ�
 * Permissions : `devis.*` (propriétaire, réceptionniste) ; lecture seule pour le comptable.
 * Non fait volontairement à ce stade : signature manuscrite, QR code, catalogue de forfaits/pièces (arrive avec le stock), envoi automatique par email/SMS,
   transformation en ordre de réparation (étape suivante).
+
+
+## Phase 2, étape 3 : ordres de réparation (implémenté)
+
+* Tables `ordres_reparation`, `or_statut_historique` ; colonne `devis.or_id` (un ordre peut avoir plusieurs devis ou versions).
+* **Numérotation** `OR-AAAA-NNNN` (même service que les devis, compteur par garage/type/année, créé dans la transaction de création de l'ordre).
+* **Statuts** (`OR_TRANSITIONS`) : en_attente, diagnostic, devis_envoye, devis_accepte, en_cours, attente_pieces, termine, facture, livre, annule.
+  Transitions validées côté serveur et journalisées (`or_statut_historique`). `facture` est réservé à la facturation (jamais manuel).
+  `annule` exige un motif ; `livre` et `annule` closent l'ordre (plus modifiable).
+* **Automatismes** : envoyer un devis lié passe l'ordre en `devis_envoye`, l'accepter (par le garage ou via le lien client) en `devis_accepte`,
+  uniquement si la transition est permise depuis le statut courant (sinon ignoré).
+* **Kilométrage** : l'entrée met à jour le compteur du véhicule, sans jamais le faire baisser (correction sur la fiche du véhicule).
+* **Autorisation de travaux** : nom + date enregistrés par le garage (la signature manuscrite et les photos d'arrivée viennent plus tard).
+* **Rôles** : `or.*` (propriétaire, réceptionniste) ; le mécanicien lit, change le statut et écrit diagnostic/travaux effectués ; il ne voit ni
+  téléphone client ni devis ; le comptable lit.
+* Non fait volontairement : photos d'arrivée, signature manuscrite, lignes de travaux (`or_lignes`), tâches/pointage, postes (étapes suivantes :
+  facture à partir de l'ordre, planning).
+
+
+## Phase 2, étape 4 : factures, paiements, reçus, avoirs (implémenté)
+
+* Tables `factures`, `facture_lignes`, `paiements`, `recus`, `avoirs`.
+* **Numérotation** `FAC-`, `REC-`, `AV-` : même service que les devis et ordres, compteur par garage/type/année sous verrou. Une facture n'a
+  pas de numéro tant qu'elle est brouillon : supprimer un brouillon ne crée aucun trou.
+* **Inviolabilité** : à l'émission, `snapshot` (garage, client, véhicule) et `hash_integrite` (SHA-256 du numéro, de la date, des montants, des
+  lignes et du snapshot) sont enregistrés. Une facture émise ne peut plus être modifiée ni supprimée : refus par l'API (409) ET par un garde-fou
+  ORM (`before_flush`) qui bloque toute modification des colonnes protégées, des lignes et la suppression. Seuls `statut`, `annulee_le` et
+  `motif_annulation` évoluent (annulation par avoir). `GET /api/factures/<id>/verify` recalcule l'empreinte. Le PDF d'une facture émise est
+  produit à partir du snapshot, jamais de l'état actuel du client ou du garage.
+  *Durcissement possible plus tard* : triggers PostgreSQL équivalents (non activés ici : non testables sans PostgreSQL, et ils interdiraient la
+  suppression d'un garage par cascade).
+* **Avoir** : annulation totale d'une facture émise, impossible tant qu'il reste des paiements valides (il faut d'abord les annuler). Une facture
+  annulée libère le devis et l'ordre pour une nouvelle facture. Pas d'avoir partiel pour l'instant.
+* **Paiements** : montant plafonné au reste à payer (verrou de ligne sur la facture), `Idempotency-Key` (en-tête) pour rejouer sans doublon,
+  annulation avec motif (jamais de suppression), reçu créé dans la même transaction avec contenu figé et solde restant. Acompte : paiement rattaché à
+  un ordre (`or_id`), rattaché à la facture à son émission ; l'émission est refusée si les acomptes dépassent le total.
+* **Statuts de paiement** calculés : impayée, partielle, payée, en retard (échéance dépassée), annulée.
+* **Caisse du jour** : total et répartition par moyen de paiement (jour UTC).
+* **Rôles** : `factures.*` et `paiements.*` (propriétaire, comptable) ; la réceptionniste crée, émet, encaisse mais n'annule ni facture ni paiement ;
+  le mécanicien n'a aucun accès.
+* Un seul taux de TVA par facture (celui du profil au moment de l'émission). Non fait : avoir partiel, remboursement, relances automatiques des impayés,
+  e-MECeF (facturation électronique normalisée), bon de sortie.
+
+## Session et navigation
+
+* Cookies JWT **persistants** (`JWT_SESSION_COOKIE = False`) : sans cela le navigateur les efface en quittant l'application.
+* Rafraîchissement automatique du jeton d'accès, **un seul à la fois** (le jeton de rafraîchissement est à usage unique), y compris pour
+  `/api/auth/me` ; une erreur réseau n'entraîne plus de déconnexion.

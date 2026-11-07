@@ -41,6 +41,7 @@ class Config:
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", SECRET_KEY)
     ON_VERCEL = bool(os.environ.get("VERCEL"))
     DEVIS_VALIDITE_JOURS = int(os.environ.get("DEVIS_VALIDITE_JOURS", "30"))
+    FACTURE_ECHEANCE_JOURS = int(os.environ.get("FACTURE_ECHEANCE_JOURS", "30"))
     # Confirmation de l'email à l'inscription : désactivée par défaut (REQUIRE_EMAIL_VERIFICATION=true pour l'exiger).
     REQUIRE_EMAIL_VERIFICATION = os.environ.get("REQUIRE_EMAIL_VERIFICATION", "false").strip().lower() in ("1", "true", "yes", "oui")
     APP_BASE_URL = _default_base_url()
@@ -54,6 +55,7 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
     JWT_COOKIE_SECURE = IS_PRODUCTION
+    JWT_SESSION_COOKIE = False  # cookies persistants : la session survit à la fermeture du navigateur / de l'application
     JWT_COOKIE_SAMESITE = "Lax"
     JWT_COOKIE_CSRF_PROTECT = True
     JWT_REFRESH_COOKIE_PATH = "/api/auth/"

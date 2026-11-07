@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Ordre de réparation{% endblock %}
+{% block content %}
+<section class="card">
+  <p><a href="/or">&larr; Tous les ordres</a></p>
+  <div class="toolbar"><h1 id="or-titre">…</h1><span><span id="or-urgent" class="badge bad" hidden>Urgent</span> <span id="or-badge" class="badge"></span></span></div>
+  <p class="muted" id="or-resume"></p>
+  <p>Véhicule : <strong id="or-vehicule">—</strong><br>Client : <strong id="or-client">—</strong><br>Mécanicien : <strong id="or-mecano">—</strong></p>
+  <p id="or-autorisation" class="muted"></p>
+  <p><strong>Motif :</strong> <span id="or-motif"></span></p>
+  <h3>Étape suivante</h3>
+  <p id="actions" class="actions-left"></p>
+  <p id="actions-autres" class="actions-left"></p>
+</section>
+<section class="card" id="devis-card">
+  <div class="toolbar"><h2>Devis</h2><a class="btn" id="btn-devis" href="#">+ Nouveau devis</a></div>
+  <ul id="devis-liste" class="list"></ul>
+  <p id="devis-vide" class="muted" hidden>Aucun devis pour cet ordre.</p>
+</section>
+<section class="card" id="finance-card" hidden>
+  <div class="toolbar"><h2>Facturation</h2><button class="btn" id="btn-facturer" type="button">Créer la facture</button></div>
+  <ul id="factures-liste" class="list"></ul>
+  <p id="factures-vide" class="muted" hidden>Aucune facture pour cet ordre.</p>
+  <h3>Acomptes</h3>
+  <p class="muted">Un acompte encaissé ici sera rattaché automatiquement à la facture au moment de son émission.</p>
+  <p><button class="btn btn-ghost" id="btn-acompte" type="button">+ Enregistrer un acompte</button></p>
+  <form id="acompte-form" hidden novalidate>
+    {% include "_paiement_fields.html" %}
+    <button class="btn" type="submit">Encaisser l'acompte</button>
+  </form>
+  <ul id="acomptes-liste" class="list"></ul>
+  <p id="acomptes-vide" class="muted" hidden>Aucun acompte en attente de facture.</p>
+</section>
+<section class="card">
+  <h2>Suivi de l'atelier</h2>
+  <form id="or-form" novalidate>
+    <label>Motif<input name="motif" maxlength="255"></label><span class="err" data-error-for="motif"></span>
+    <label>Symptômes décrits par le client<textarea name="symptomes" rows="3" maxlength="2000"></textarea></label><span class="err" data-error-for="symptomes"></span>
+    <label>Diagnostic<textarea name="diagnostic" rows="3" maxlength="2000"></textarea></label><span class="err" data-error-for="diagnostic"></span>
+    <label>Travaux effectués<textarea name="travaux_effectues" rows="3" maxlength="2000"></textarea></label><span class="err" data-error-for="travaux_effectues"></span>
+    <label>État du véhicule à l'arrivée<textarea name="etat_arrivee" rows="3" maxlength="2000"></textarea></label><span class="err" data-error-for="etat_arrivee"></span>
+    <label>Kilométrage à l'entrée<input name="kilometrage_entree" type="number" min="0" inputmode="numeric"></label><span class="err" data-error-for="kilometrage_entree"></span>
+    <label>Niveau de carburant
+      <select name="niveau_carburant"><option value="">Non relevé</option><option value="0">Vide</option><option value="25">1/4</option><option value="50">1/2</option><option value="75">3/4</option><option value="100">Plein</option></select>
+    </label><span class="err" data-error-for="niveau_carburant"></span>
+    <label>Sortie prévue<input name="date_sortie_prevue" type="date"></label><span class="err" data-error-for="date_sortie_prevue"></span>
+    <label>Mécanicien<select name="mecanicien_id"><option value="">— Non affecté —</option></select></label><span class="err" data-error-for="mecanicien_id"></span>
+    <label class="check"><input name="urgent" type="checkbox"> Urgent</label>
+    <button class="btn" type="submit" id="or-save">Enregistrer</button>
+  </form>
+</section>
+<section class="card">
+  <h2>Historique</h2>
+  <ul id="historique" class="list"></ul>
+</section>
+{% endblock %}

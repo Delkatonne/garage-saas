@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Facture{% endblock %}
+{% block content %}
+<section class="card">
+  <p><a href="/factures">&larr; Toutes les factures</a></p>
+  <h1 id="editeur-titre">Nouvelle facture</h1>
+  <form id="devis-form" novalidate>
+    <h2>Client et véhicule</h2>
+    <p id="client-chosen" class="muted">Aucun client choisi.</p>
+    <label>Rechercher un client<input id="picker-q" type="search" placeholder="Nom ou téléphone…" autocomplete="off"></label>
+    <ul id="picker-results" class="list"></ul>
+    <input type="hidden" name="client_id"><span class="err" data-error-for="client_id"></span>
+    <label>Véhicule concerné
+      <select name="vehicule_id" id="vehicule-select"><option value="">— Aucun —</option></select>
+    </label><span class="err" data-error-for="vehicule_id"></span>
+
+    <h2>Travaux et pièces</h2>
+    <div class="table-wrap">
+      <table class="table lines">
+        <thead><tr><th>Type</th><th>Désignation</th><th>Qté</th><th>Prix unitaire</th><th>Remise %</th><th class="num">Total</th><th></th></tr></thead>
+        <tbody id="lignes"></tbody>
+      </table>
+    </div>
+    <span class="err" data-error-for="lignes"></span>
+    <p class="actions-left">
+      <button class="btn btn-ghost" type="button" data-add="main_oeuvre">+ Main-d'œuvre</button>
+      <button class="btn btn-ghost" type="button" data-add="piece">+ Pièce</button>
+      <button class="btn btn-ghost" type="button" data-add="forfait">+ Forfait</button>
+      <button class="btn btn-ghost" type="button" data-add="autre">+ Autre</button>
+    </p>
+    <label>Remise globale (montant)<input name="remise_globale" type="number" min="0" step="any" inputmode="decimal"></label><span class="err" data-error-for="remise_globale"></span>
+    <div id="totaux" class="totals"></div>
+    <label>Conditions<textarea name="conditions" rows="4" maxlength="2000"></textarea></label><span class="err" data-error-for="conditions"></span>
+    <button class="btn" type="submit">Enregistrer le brouillon</button>
+  </form>
+</section>
+{% endblock %}

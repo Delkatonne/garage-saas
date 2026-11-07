@@ -36,12 +36,12 @@ def create_app(config_object=None):
 
     from . import models, tenancy  # noqa: F401  (enregistre les modèles et les filtres tenant)
     from . import auth_hooks  # noqa: F401
-    from .api import admin, auth, clients, cron, devis, garage, public, vehicules
+    from .api import admin, auth, clients, cron, devis, factures, garage, ordres, paiements, public, vehicules
     from .cli import register_cli
     from .errors import register_error_handlers
     from .web import bp as web_bp
 
-    for module in (auth, garage, admin, cron, clients, vehicules, devis, public):
+    for module in (auth, garage, admin, cron, clients, vehicules, devis, ordres, factures, paiements, public):
         app.register_blueprint(module.bp)
     app.register_blueprint(web_bp)
     register_error_handlers(app)

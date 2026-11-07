@@ -9,6 +9,7 @@
     <a class="btn btn-ghost" id="btn-whatsapp" href="#" target="_blank" rel="noopener noreferrer" hidden>WhatsApp</a>
     <a class="btn btn-ghost" id="btn-appeler" href="#" hidden>Appeler</a>
     <a class="btn" id="btn-devis" href="#">Nouveau devis</a>
+    <a class="btn" id="btn-or" href="#">Nouvel ordre de réparation</a>
     <button class="btn btn-ghost" id="btn-archive" type="button">Archiver</button>
     <button class="btn btn-ghost" id="btn-restore" type="button" hidden>Restaurer</button>
   </p>
@@ -25,6 +26,16 @@
     {% include "_vehicule_fields.html" %}
     <button class="btn" type="submit">Enregistrer le véhicule</button>
   </form>
+</section>
+<section class="card">
+  <div class="toolbar"><h2>Ordres de réparation</h2></div>
+  <ul id="or-liste" class="list"></ul>
+  <p id="or-vide" class="muted" hidden>Aucun ordre de réparation pour ce client.</p>
+</section>
+<section class="card">
+  <div class="toolbar"><h2>Factures</h2></div>
+  <ul id="factures-liste" class="list"></ul>
+  <p id="factures-vide" class="muted" hidden>Aucune facture pour ce client.</p>
 </section>
 <section class="card">
   <div class="toolbar"><h2>Devis</h2></div>

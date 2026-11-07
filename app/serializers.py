@@ -98,7 +98,7 @@ def _iso(dt):
     return dt.isoformat() if dt else None
 
 
-def devis_dict(d, client=None, vehicule=None, with_lignes=True):
+def devis_dict(d, client=None, vehicule=None, with_lignes=True, ordre=None):
     out = {
         "id": str(d.id), "numero": d.numero, "version": d.version, "statut": d.statut,
         "statut_effectif": d.statut_effectif, "date_emission": _iso(d.date_emission),
@@ -106,6 +106,8 @@ def devis_dict(d, client=None, vehicule=None, with_lignes=True):
         "client_id": str(d.client_id), "vehicule_id": str(d.vehicule_id) if d.vehicule_id else None,
         "accepte_le": _iso(d.accepte_le), "acceptation_nom": d.acceptation_nom, "acceptation_mode": d.acceptation_mode,
         "refuse_le": _iso(d.refuse_le), "refus_motif": d.refus_motif,
+        "or_id": str(d.or_id) if d.or_id else None,
+        "ordre": {"id": str(ordre.id), "numero": ordre.numero} if ordre else None,
         "lien_public_actif": bool(d.token_public_hash), "devis_parent_id": str(d.devis_parent_id) if d.devis_parent_id else None,
         "cree_le": _iso(d.created_at),
         "client": ({"id": str(client.id), "nom_affiche": client.nom_affiche, "telephone": client.telephone,
@@ -133,3 +135,58 @@ def devis_public_dict(d, garage, client, vehicule):
         "client": client.nom_affiche if client else None,
         "vehicule": (f"{vehicule.marque} {vehicule.modele}" + (f" · {vehicule.immatriculation}" if vehicule.immatriculation else "")) if vehicule else None,
     }
+
+
+def or_dict(o, client=None, vehicule=None, mecanicien=None, show_phone=True):
+    return {
+        "id": str(o.id), "numero": o.numero, "statut": o.statut, "urgent": o.urgent, "motif": o.motif,
+        "symptomes": o.symptomes, "kilometrage_entree": o.kilometrage_entree, "niveau_carburant": o.niveau_carburant,
+        "etat_arrivee": o.etat_arrivee, "diagnostic": o.diagnostic, "travaux_effectues": o.travaux_effectues,
+        "date_entree": _iso(o.date_entree), "date_sortie_prevue": _iso(o.date_sortie_prevue),
+        "date_livraison": _iso(o.date_livraison), "mecanicien_id": str(o.mecanicien_id) if o.mecanicien_id else None,
+        "mecanicien": ({"id": str(mecanicien.id), "nom": mecanicien.nom_complet} if mecanicien else None),
+        "autorisation": ({"nom": o.signature_nom, "date": _iso(o.signature_date)} if o.signature_nom else None),
+        "client_id": str(o.client_id), "vehicule_id": str(o.vehicule_id),
+        "client": ({"id": str(client.id), "nom_affiche": client.nom_affiche,
+                    "telephone": client.telephone if show_phone else None} if client else None),
+        "vehicule": ({"id": str(vehicule.id), "libelle": f"{vehicule.marque} {vehicule.modele}",
+                      "immatriculation": vehicule.immatriculation, "type": vehicule.type,
+                      "kilometrage_actuel": vehicule.kilometrage_actuel} if vehicule else None),
+        "cree_le": _iso(o.created_at),
+    }
+
+
+def paiement_dict(p, recu=None):
+    from app.models import MOYEN_LABELS
+
+    return {"id": str(p.id), "facture_id": str(p.facture_id) if p.facture_id else None, "or_id": str(p.or_id) if p.or_id else None,
+            "client_id": str(p.client_id), "montant": _num(p.montant), "devise": p.devise, "moyen": p.moyen,
+            "moyen_label": MOYEN_LABELS.get(p.moyen, p.moyen), "reference": p.reference_transaction,
+            "date_paiement": _iso(p.date_paiement), "statut": p.statut, "motif_annulation": p.motif_annulation,
+            "recu": ({"numero": recu.numero, "solde_restant": _num(recu.solde_restant)} if recu else None)}
+
+
+def facture_dict(f, paid=0, client=None, vehicule=None, ordre=None, devis=None, with_lignes=True):
+    from decimal import Decimal
+
+    from app.services.factures_core import payment_status
+
+    paid = Decimal(paid or 0)
+    out = {
+        "id": str(f.id), "numero": f.numero, "statut": f.statut, "statut_paiement": payment_status(f, paid),
+        "emise_le": _iso(f.emise_le), "echeance": _iso(f.echeance), "conditions": f.conditions,
+        "client_id": str(f.client_id), "vehicule_id": str(f.vehicule_id) if f.vehicule_id else None,
+        "or_id": str(f.or_id) if f.or_id else None, "devis_id": str(f.devis_id) if f.devis_id else None,
+        "total_paye": float(paid), "reste_a_payer": float(Decimal(f.total_ttc) - paid) if f.statut == "emise" else None,
+        "empreinte": f.hash_integrite[:16] if f.hash_integrite else None,
+        "annulee_le": _iso(f.annulee_le), "motif_annulation": f.motif_annulation, "cree_le": _iso(f.created_at),
+        "client": ({"id": str(client.id), "nom_affiche": client.nom_affiche, "telephone": client.telephone} if client else None),
+        "vehicule": ({"id": str(vehicule.id), "libelle": f"{vehicule.marque} {vehicule.modele}",
+                      "immatriculation": vehicule.immatriculation} if vehicule else None),
+        "ordre": {"id": str(ordre.id), "numero": ordre.numero} if ordre else None,
+        "devis": {"id": str(devis.id), "numero": devis.numero} if devis else None,
+        **_money_block(f),
+    }
+    if with_lignes:
+        out["lignes"] = [ligne_dict(l) for l in f.lignes]
+    return out

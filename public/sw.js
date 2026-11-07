@@ -1,5 +1,5 @@
 /* Service worker minimal : met en cache la coquille statique ; JAMAIS les appels /api. */
-const CACHE = "garage-shell-v1";
+const CACHE = "garage-shell-v2";
 const SHELL = ["/static/css/app.css", "/static/js/app.js", "/static/icons/icon-192.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))); self.clients.claim(); });

@@ -9,10 +9,11 @@ from .models import PlatformAdmin, User
 # Permissions nommées "module.action". Complétées à chaque nouveau module.
 ROLE_PERMISSIONS = {
     "owner": {"*"},
-    "receptionniste": {"clients.*", "vehicules.*", "or.*", "devis.*", "planning.*"},
+    "receptionniste": {"clients.*", "vehicules.*", "or.*", "devis.*", "planning.*", "factures.read", "factures.create",
+                       "factures.update", "factures.emit", "paiements.read", "paiements.create"},
     "mecanicien": {"or.read", "or.update_status", "taches.*", "pointage.*", "vehicules.read"},
     "magasinier": {"stock.*", "fournisseurs.*"},
-    "comptable": {"factures.*", "paiements.*", "depenses.*", "rapports.*", "caisse.*", "clients.read", "vehicules.read", "devis.read"},
+    "comptable": {"factures.*", "paiements.*", "depenses.*", "rapports.*", "caisse.*", "clients.read", "vehicules.read", "devis.read", "or.read"},
 }
 
 

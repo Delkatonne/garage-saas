@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Fiche facture{% endblock %}
+{% block content %}
+<section class="card">
+  <p><a href="/factures">&larr; Toutes les factures</a></p>
+  <div class="toolbar"><h1 id="fac-titre">…</h1><span id="fac-badge" class="badge"></span></div>
+  <p class="muted" id="fac-resume"></p>
+  <p>Client : <strong id="fac-client">—</strong><br>Véhicule : <strong id="fac-vehicule">—</strong><br>Ordre de réparation : <strong id="fac-or">—</strong><br>Devis : <strong id="fac-devis">—</strong></p>
+  <p id="fac-avoir" class="muted" hidden></p>
+  <p id="actions" class="actions-left"></p>
+</section>
+<section class="card">
+  <h2>Détail</h2>
+  <div class="table-wrap"><table class="table" id="lignes-table"></table></div>
+  <div id="totaux" class="totals"></div>
+  <h3>Conditions de paiement</h3>
+  <p class="pre" id="fac-conditions"></p>
+</section>
+<section class="card" id="paiements-card" hidden>
+  <div class="toolbar"><h2>Paiements</h2><span id="fac-solde" class="muted"></span></div>
+  <form id="paiement-form" hidden novalidate>
+    {% include "_paiement_fields.html" %}
+    <button class="btn" type="submit">Encaisser</button>
+  </form>
+  <ul id="paiements-liste" class="list"></ul>
+  <p id="paiements-vide" class="muted" hidden>Aucun paiement enregistré.</p>
+</section>
+{% endblock %}

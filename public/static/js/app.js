@@ -5,18 +5,29 @@
   const cookie = (n) => (document.cookie.match(new RegExp("(?:^|; )" + n + "=([^;]*)")) || [])[1];
 
   // ---------- Appels API (cookies httpOnly + CSRF double-submit + refresh automatique) ----------
-  async function raw(path, { method = "GET", body, isForm = false } = {}) {
-    const headers = {};
+  async function raw(path, { method = "GET", body, isForm = false, headers: extraHeaders = {} } = {}) {
+    const headers = { ...extraHeaders };
     if (body && !isForm) headers["Content-Type"] = "application/json";
     const csrf = cookie("csrf_access_token");
     if (csrf && method !== "GET") headers["X-CSRF-TOKEN"] = csrf;
     return fetch(path, { method, headers, credentials: "same-origin", body: isForm ? body : body ? JSON.stringify(body) : undefined });
   }
+  // Le jeton d'accès dure 15 min : à son expiration, UN SEUL rafraîchissement est lancé même si plusieurs appels échouent
+  // en même temps (le jeton de rafraîchissement est à usage unique). Valable aussi pour /api/auth/me.
+  const NO_REFRESH = ["/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/logout", "/api/auth/forgot-password",
+    "/api/auth/reset-password", "/api/auth/verify-email", "/api/auth/resend-verification", "/api/public/"];
+  let refreshing = null;
+  function refreshSession() {
+    if (!refreshing) {
+      refreshing = fetch("/api/auth/refresh", { method: "POST", credentials: "same-origin", headers: { "X-CSRF-TOKEN": cookie("csrf_refresh_token") || "" } })
+        .then((r) => r.ok).catch(() => false).finally(() => { setTimeout(() => { refreshing = null; }, 0); });
+    }
+    return refreshing;
+  }
   async function api(path, opts = {}) {
     let res = await raw(path, opts);
-    if (res.status === 401 && !path.startsWith("/api/auth/")) {
-      const r = await fetch("/api/auth/refresh", { method: "POST", credentials: "same-origin", headers: { "X-CSRF-TOKEN": cookie("csrf_refresh_token") || "" } });
-      if (r.ok) res = await raw(path, opts);
+    if (res.status === 401 && !NO_REFRESH.some((p) => path.startsWith(p))) {
+      if (await refreshSession()) res = await raw(path, opts);
     }
     let data = {};
     try { data = await res.json(); } catch (_) {}
@@ -143,7 +154,7 @@
     const reload = () => { page = 1; load(); };
     $("#search-form").addEventListener("submit", (ev) => { ev.preventDefault(); reload(); });
     $("#q").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(reload, 300); });
-    document.querySelectorAll("#search-form select").forEach((s) => s.addEventListener("change", reload));
+    document.querySelectorAll("#search-form select, #search-form input[type=checkbox]").forEach((s) => s.addEventListener("change", reload));
     prev.addEventListener("click", () => { page -= 1; load(); });
     next.addEventListener("click", () => { page += 1; load(); });
     load();
@@ -187,17 +198,201 @@
     } catch (e) { const section = list.closest("section"); if (section) section.hidden = true; }  // pas le droit de voir les devis
   }
 
+  // ---------- Ordres de réparation : libellés et listes ----------
+  const OR_STATUTS = { en_attente: ["En attente", "muted2"], diagnostic: ["Diagnostic", "info"], devis_envoye: ["Devis envoyé", "info"], devis_accepte: ["Devis accepté", "ok"],
+    en_cours: ["Travaux en cours", "info"], attente_pieces: ["Attente de pièces", "muted2"], termine: ["Terminé", "ok"], facture: ["Facturé", "ok"], livre: ["Livré", "ok"], annule: ["Annulé", "bad"] };
+  const OR_ACTIONS = { diagnostic: "Diagnostic en cours", devis_envoye: "Devis envoyé au client", devis_accepte: "Devis accepté", en_cours: "Travaux en cours",
+    attente_pieces: "En attente de pièces", termine: "Travaux terminés", livre: "Véhicule livré", annule: "Annuler l'ordre" };
+  const orLabel = (st) => (OR_STATUTS[st] || [st])[0];
+  const fmtDateTime = (iso) => (iso ? new Date(iso).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "");
+  async function loadOrInto(params, list, empty) {
+    try {
+      const out = await api("/api/or?" + new URLSearchParams({ ...params, statut: "tous", par_page: 10 }));
+      list.replaceChildren(...out.ordres.map((o) => itemLink("/or/" + o.id, `${o.numero} · ${o.vehicule ? o.vehicule.libelle : ""}`,
+        [orLabel(o.statut), o.vehicule && o.vehicule.immatriculation, fmtDate(o.date_entree)].filter(Boolean).join(" · "))));
+      empty.hidden = out.ordres.length > 0;
+    } catch (e) { const section = list.closest("section"); if (section) section.hidden = true; }
+  }
+
+  const DEFAULT_CONDITIONS_FACTURE = "Paiement à réception de la facture. Toute somme non réglée à l'échéance peut donner lieu à des pénalités de retard.";
+  const DEVIS_KIND = { api: "/api/devis", base: "/devis", key: "devis", notFound: "Devis introuvable.", editTitle: "Modifier le devis", defaultConditions: DEFAULT_CONDITIONS };
+  const FACTURE_KIND = { api: "/api/factures", base: "/factures", key: "facture", notFound: "Facture introuvable.", editTitle: "Modifier la facture", defaultConditions: DEFAULT_CONDITIONS_FACTURE };
+  // Éditeur de lignes (client, véhicule, travaux, remise, conditions) commun aux devis et aux factures
+  function editorPage(kind) {
+    return async function () {
+        const me = await loadMe(); if (!me) return; navLoggedIn(me);
+        const g = me.garage, dec = g.devise_decimales, f = $("#devis-form"), tbody = $("#lignes"), vsel = $("#vehicule-select"), chosen = $("#client-chosen");
+        const parts = location.pathname.split("/").filter(Boolean);
+        const editingId = parts[2] === "modifier" ? parts[1] : null;
+        let orId = null;
+        const rnd = (x) => { const k = 10 ** dec; return Math.round((x + Number.EPSILON) * k) / k; };
+        const num = (v) => { const n = parseFloat(String(v).replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+        const field = (tr, name) => tr.querySelector(`[name=${name}]`);
+
+        function recalc() {
+          let sub = 0;
+          tbody.querySelectorAll("tr").forEach((tr) => {
+            const t = rnd(num(field(tr, "quantite").value) * num(field(tr, "prix_unitaire").value) * (100 - num(field(tr, "remise_pct").value)) / 100);
+            tr.querySelector(".ligne-total").textContent = fmtMoney(t, dec, g.devise); sub += t;
+          });
+          const remise = Math.min(num(f.elements.remise_globale.value), sub), ht = rnd(sub - remise), tva = g.tva_active ? rnd(ht * g.tva_taux / 100) : 0;
+          totalsBlock($("#totaux"), { devise: g.devise, devise_decimales: dec, tva_active: g.tva_active, tva_taux: g.tva_taux, sous_total_ht: sub, remise_globale: remise, total_ht: ht, total_tva: tva, total_ttc: rnd(ht + tva) });
+        }
+        function addRow(data = {}) {
+          const typeSel = el("select", { name: "type" }, Object.entries(LIGNE_LABELS).map(([v, t]) => el("option", { value: v, text: t })));
+          typeSel.value = data.type || "main_oeuvre";
+          const inp = (name, attrs) => el("input", { name, ...attrs });
+          const des = inp("designation", { maxlength: "200", placeholder: "Ex. Vidange moteur" }); des.value = data.designation || "";
+          const qte = inp("quantite", { type: "number", min: "0.01", step: "any", inputmode: "decimal" }); qte.value = data.quantite ?? 1;
+          const pu = inp("prix_unitaire", { type: "number", min: "0", step: "any", inputmode: "decimal" }); pu.value = data.prix_unitaire ?? "";
+          const rem = inp("remise_pct", { type: "number", min: "0", max: "100", step: "any", inputmode: "decimal" }); rem.value = data.remise_pct || "";
+          const del = el("button", { type: "button", class: "linklike", "aria-label": "Supprimer la ligne", text: "✕" });
+          const tr = el("tr", {}, el("td", {}, typeSel), el("td", { class: "col-des" }, des), el("td", {}, qte), el("td", {}, pu), el("td", {}, rem), el("td", { class: "num ligne-total" }), el("td", {}, del));
+          del.addEventListener("click", () => { tr.remove(); recalc(); });
+          tr.addEventListener("input", recalc);
+          tbody.appendChild(tr); recalc();
+          return tr;
+        }
+        async function loadVehicules(clientId, selected) {
+          vsel.replaceChildren(el("option", { value: "", text: "— Aucun —" }));
+          try {
+            const out = await api("/api/vehicules?" + new URLSearchParams({ client_id: clientId, par_page: 100 }));
+            out.vehicules.forEach((v) => vsel.append(el("option", { value: v.id, text: `${v.marque} ${v.modele}${v.immatriculation ? " · " + v.immatriculation : ""}` })));
+          } catch (_) { /* liste de véhicules indisponible : le devis reste possible sans véhicule */ }
+          if (selected && ![...vsel.options].some((o) => o.value === selected.id))
+            vsel.append(el("option", { value: selected.id, text: selected.libelle ? selected.libelle + (selected.immatriculation ? " · " + selected.immatriculation : "") : "Véhicule sélectionné" }));
+          vsel.value = selected ? selected.id : "";
+        }
+        function chooseClient(c, selectedVehicule) {
+          f.elements.client_id.value = c.id;
+          chosen.textContent = "Client : " + c.nom_affiche + (c.telephone ? " · " + c.telephone : "");
+          return loadVehicules(c.id, selectedVehicule);
+        }
+        document.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => addRow({ type: b.dataset.add }).querySelector("[name=designation]").focus()));
+        f.elements.remise_globale.addEventListener("input", recalc);
+
+        const q = $("#picker-q"), res = $("#picker-results");
+        let timer;
+        q.addEventListener("input", () => {
+          clearTimeout(timer);
+          timer = setTimeout(async () => {
+            const term = q.value.trim();
+            if (term.length < 2) { res.replaceChildren(); return; }
+            try {
+              const out = await api("/api/clients?" + new URLSearchParams({ q: term, par_page: 6 }));
+              res.replaceChildren(...out.clients.map((c) => {
+                const b = el("button", { type: "button", class: "linklike", text: c.nom_affiche + (c.telephone ? " · " + c.telephone : "") });
+                b.addEventListener("click", () => { chooseClient(c, null); res.replaceChildren(); q.value = ""; });
+                return el("li", {}, b);
+              }));
+            } catch (e) { alertBox(e.message); }
+          }, 300);
+        });
+
+        if (editingId) {
+          $("#editeur-titre").textContent = kind.editTitle;
+          let d;
+          try { d = (await api(kind.api + "/" + editingId))[kind.key]; } catch (e) { return alertBox(e.status === 404 ? kind.notFound : e.message); }
+          if (d.statut !== "brouillon") { location.href = kind.base + "/" + editingId; return; }
+          await chooseClient(d.client, d.vehicule);
+          f.elements.remise_globale.value = d.remise_globale || "";
+          f.elements.conditions.value = d.conditions || "";
+          d.lignes.forEach((l) => addRow(l));
+        } else {
+          const params = new URLSearchParams(location.search), cid = params.get("client_id"), vid = params.get("vehicule_id");
+          orId = params.get("or_id");
+          f.elements.conditions.value = kind.defaultConditions;
+          if (cid) {
+            try { await chooseClient((await api("/api/clients/" + cid)).client, vid ? { id: vid } : null); } catch (e) { alertBox("Client introuvable."); }
+          }
+          addRow({ type: "main_oeuvre" });
+        }
+
+        f.addEventListener("submit", async (ev) => {
+          ev.preventDefault(); clearErrors(f);
+          const btn = f.querySelector("[type=submit]"); btn.disabled = true;
+          const payload = {
+            client_id: f.elements.client_id.value, vehicule_id: vsel.value || null, or_id: editingId ? undefined : orId,
+            remise_globale: f.elements.remise_globale.value, conditions: f.elements.conditions.value,
+            lignes: [...tbody.querySelectorAll("tr")].map((tr) => ({ type: field(tr, "type").value, designation: field(tr, "designation").value, quantite: field(tr, "quantite").value, prix_unitaire: field(tr, "prix_unitaire").value, remise_pct: field(tr, "remise_pct").value })),
+          };
+          try {
+            const out = await api(editingId ? kind.api + "/" + editingId : kind.api, { method: editingId ? "PATCH" : "POST", body: payload });
+            location.href = kind.base + "/" + out[kind.key].id;
+          } catch (e) {
+            showErrors(f, e.data && e.data.details);
+            alertBox((e.data && e.data.details ? Object.values(e.data.details).join(" ") : "") || e.message || "Erreur réseau, réessayez.");
+          } finally { btn.disabled = false; }
+        });
+    };
+  }
+
+  // ---------- Factures et paiements : libellés et outils ----------
+  const FSTAT = { brouillon: ["Brouillon", "muted2"], impayee: ["Impayée", "bad"], partielle: ["Partielle", "info"], payee: ["Payée", "ok"], en_retard: ["En retard", "bad"], annulee: ["Annulée", "muted2"] };
+  const fstat = (st) => (FSTAT[st] || [st, "muted2"]);
+  async function loadFacturesInto(params, list, empty) {
+    try {
+      const out = await api("/api/factures?" + new URLSearchParams({ ...params, statut: "tous", par_page: 10 }));
+      list.replaceChildren(...out.factures.map((f) => itemLink("/factures/" + f.id, f.numero || "Brouillon",
+        [fstat(f.statut_paiement)[0], fmtMoney(f.total_ttc, f.devise_decimales, f.devise), fmtDate(f.emise_le || f.cree_le)].join(" · "))));
+      empty.hidden = out.factures.length > 0;
+    } catch (e) { const section = list.closest("section"); if (section) section.hidden = true; }
+  }
+  // Formulaire d'encaissement (facture ou acompte). La clé d'idempotence est conservée tant que le paiement n'a pas abouti :
+  // si la réponse se perd (réseau instable) et qu'on réessaie, le serveur ne l'enregistre pas deux fois.
+  function bindPaymentForm(form, target, done) {
+    let key = null;
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault(); clearErrors(form);
+      const btn = form.querySelector("[type=submit]"); btn.disabled = true;
+      key = key || (window.crypto && crypto.randomUUID ? crypto.randomUUID() : "k" + Date.now() + Math.random().toString(16).slice(2));
+      const payload = { ...target(), montant: form.elements.montant.value, moyen: form.elements.moyen.value,
+        reference_transaction: form.elements.reference_transaction.value, date_paiement: form.elements.date_paiement.value };
+      try {
+        const out = await api("/api/paiements", { method: "POST", body: payload, headers: { "Idempotency-Key": key } });
+        key = null; form.reset(); form.hidden = true;
+        alertBox((out.rejoue ? "Ce paiement était déjà enregistré. " : "Paiement enregistré. ") + (out.paiement.recu ? "Reçu " + out.paiement.recu.numero + "." : ""), "success");
+        await done(out);
+      } catch (e) {
+        showErrors(form, e.data && e.data.details);
+        alertBox((e.data && e.data.details ? Object.values(e.data.details).join(" ") : "") || e.message || "Erreur réseau, réessayez : le paiement ne sera pas enregistré deux fois.");
+      } finally { btn.disabled = false; }
+    });
+  }
+
   // ---------- Pages ----------
   async function loadMe() {
-    try { return await api("/api/auth/me"); } catch (e) { location.href = "/connexion"; return null; }
+    try { return await api("/api/auth/me"); } catch (e) {
+      if (e.status === 401 || e.status === 403) { location.href = "/connexion"; return null; }  // vraiment déconnecté
+      alertBox("Connexion impossible pour le moment. Vérifiez votre réseau, puis rechargez la page.");  // réseau instable : on reste connecté
+      return null;
+    }
+  }
+  const NAV_ITEMS = [["Tableau de bord", "/tableau-de-bord", null], ["Clients", "/clients", ["owner", "receptionniste", "comptable"]],
+    ["Véhicules", "/vehicules", ["owner", "receptionniste", "mecanicien", "comptable"]], ["Réparations", "/or", ["owner", "receptionniste", "mecanicien", "comptable"]],
+    ["Devis", "/devis", ["owner", "receptionniste", "comptable"]], ["Factures", "/factures", ["owner", "receptionniste", "comptable"]], ["Profil", "/profil", null]];
+  const navItems = (me) => NAV_ITEMS.filter(([, , roles]) => !roles || roles.includes((me.utilisateur && me.utilisateur.role) || "owner"));
+  const syncMenu = () => { const b = $("#menu-toggle"), n = $("#nav"); if (b && n) b.hidden = !n.children.length; };
+  function initMenu() {
+    const bar = $(".topbar"), btn = $("#menu-toggle"), nav = $("#nav"); if (!bar || !btn || !nav) return;
+    const set = (open) => { bar.classList.toggle("open", open); btn.setAttribute("aria-expanded", String(open)); };
+    btn.addEventListener("click", (e) => { e.stopPropagation(); set(!bar.classList.contains("open")); });
+    nav.addEventListener("click", (e) => { if (e.target.closest("a")) set(false); });
+    document.addEventListener("click", (e) => { if (!bar.contains(e.target)) set(false); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") set(false); });
   }
   function navLoggedIn(me) {
     const nav = $("#nav"); if (!nav) return;
     nav.innerHTML = "";
-    [["Tableau de bord", "/tableau-de-bord"], ["Clients", "/clients"], ["Véhicules", "/vehicules"], ["Devis", "/devis"], ["Profil", "/profil"]].forEach(([t, h]) => { const a = document.createElement("a"); a.href = h; a.textContent = t; nav.appendChild(a); });
+    navItems(me).forEach(([t, h]) => {
+      const a = document.createElement("a"); a.href = h; a.textContent = t;
+      if (location.pathname === h || (h !== "/tableau-de-bord" && location.pathname.startsWith(h + "/"))) a.setAttribute("aria-current", "page");
+      nav.appendChild(a);
+    });
     const b = document.createElement("a"); b.href = "#"; b.textContent = "Déconnexion";
     b.addEventListener("click", async (e) => { e.preventDefault(); await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }); location.href = "/connexion"; });
     nav.appendChild(b);
+    syncMenu();
   }
   const pages = {
     async "tableau-de-bord"() {
@@ -252,7 +447,10 @@
         $("#vehicules").replaceChildren(...out.vehicules.map((v) => itemLink("/vehicules/" + v.id, `${v.marque} ${v.modele}`, [LABELS[v.type], v.immatriculation, fmtKm(v.kilometrage_actuel), v.actif ? "" : "archivé"].filter(Boolean).join(" · "))));
         $("#vehicules-empty").hidden = out.vehicules.length > 0;
         $("#btn-devis").href = "/devis/nouveau?client_id=" + id;
+        $("#btn-or").href = "/or/nouveau?client_id=" + id;
         loadDevisInto({ client_id: id }, $("#devis-liste"), $("#devis-vide"));
+        loadOrInto({ client_id: id }, $("#or-liste"), $("#or-vide"));
+        loadFacturesInto({ client_id: id }, $("#factures-liste"), $("#factures-vide"));
       }
       f.addEventListener("saved", load);
       $("#toggle-vehicule").addEventListener("click", () => { const c = $("#vehicule-card"); c.hidden = !c.hidden; if (!c.hidden) c.scrollIntoView({ behavior: "smooth" }); });
@@ -294,7 +492,9 @@
         fill(f, v); f.elements.corriger_kilometrage.checked = false;
         $("#btn-archive").hidden = !v.actif; $("#btn-restore").hidden = v.actif;
         $("#btn-devis").href = "/devis/nouveau?" + new URLSearchParams(out.proprietaire ? { client_id: out.proprietaire.id, vehicule_id: id } : { vehicule_id: id });
+        $("#btn-or").href = "/or/nouveau?vehicule_id=" + id;
         loadDevisInto({ vehicule_id: id }, $("#devis-liste"), $("#devis-vide"));
+        loadOrInto({ vehicule_id: id }, $("#or-liste"), $("#or-vide"));
       }
       f.addEventListener("saved", load);
       const setActive = (action, question) => async () => {
@@ -336,110 +536,8 @@
           [(STATUTS[d.statut_effectif] || [d.statut_effectif])[0], fmtMoney(d.total_ttc, d.devise_decimales, d.devise), fmtDate(d.date_emission || d.cree_le)].join(" · ")),
       });
     },
-    async "devis-editeur"() {
-      const me = await loadMe(); if (!me) return; navLoggedIn(me);
-      const g = me.garage, dec = g.devise_decimales, f = $("#devis-form"), tbody = $("#lignes"), vsel = $("#vehicule-select"), chosen = $("#client-chosen");
-      const parts = location.pathname.split("/").filter(Boolean);
-      const editingId = parts[2] === "modifier" ? parts[1] : null;
-      const rnd = (x) => { const k = 10 ** dec; return Math.round((x + Number.EPSILON) * k) / k; };
-      const num = (v) => { const n = parseFloat(String(v).replace(",", ".")); return Number.isFinite(n) ? n : 0; };
-      const field = (tr, name) => tr.querySelector(`[name=${name}]`);
-
-      function recalc() {
-        let sub = 0;
-        tbody.querySelectorAll("tr").forEach((tr) => {
-          const t = rnd(num(field(tr, "quantite").value) * num(field(tr, "prix_unitaire").value) * (100 - num(field(tr, "remise_pct").value)) / 100);
-          tr.querySelector(".ligne-total").textContent = fmtMoney(t, dec, g.devise); sub += t;
-        });
-        const remise = Math.min(num(f.elements.remise_globale.value), sub), ht = rnd(sub - remise), tva = g.tva_active ? rnd(ht * g.tva_taux / 100) : 0;
-        totalsBlock($("#totaux"), { devise: g.devise, devise_decimales: dec, tva_active: g.tva_active, tva_taux: g.tva_taux, sous_total_ht: sub, remise_globale: remise, total_ht: ht, total_tva: tva, total_ttc: rnd(ht + tva) });
-      }
-      function addRow(data = {}) {
-        const typeSel = el("select", { name: "type" }, Object.entries(LIGNE_LABELS).map(([v, t]) => el("option", { value: v, text: t })));
-        typeSel.value = data.type || "main_oeuvre";
-        const inp = (name, attrs) => el("input", { name, ...attrs });
-        const des = inp("designation", { maxlength: "200", placeholder: "Ex. Vidange moteur" }); des.value = data.designation || "";
-        const qte = inp("quantite", { type: "number", min: "0.01", step: "any", inputmode: "decimal" }); qte.value = data.quantite ?? 1;
-        const pu = inp("prix_unitaire", { type: "number", min: "0", step: "any", inputmode: "decimal" }); pu.value = data.prix_unitaire ?? "";
-        const rem = inp("remise_pct", { type: "number", min: "0", max: "100", step: "any", inputmode: "decimal" }); rem.value = data.remise_pct || "";
-        const del = el("button", { type: "button", class: "linklike", "aria-label": "Supprimer la ligne", text: "✕" });
-        const tr = el("tr", {}, el("td", {}, typeSel), el("td", { class: "col-des" }, des), el("td", {}, qte), el("td", {}, pu), el("td", {}, rem), el("td", { class: "num ligne-total" }), el("td", {}, del));
-        del.addEventListener("click", () => { tr.remove(); recalc(); });
-        tr.addEventListener("input", recalc);
-        tbody.appendChild(tr); recalc();
-        return tr;
-      }
-      async function loadVehicules(clientId, selected) {
-        vsel.replaceChildren(el("option", { value: "", text: "— Aucun —" }));
-        try {
-          const out = await api("/api/vehicules?" + new URLSearchParams({ client_id: clientId, par_page: 100 }));
-          out.vehicules.forEach((v) => vsel.append(el("option", { value: v.id, text: `${v.marque} ${v.modele}${v.immatriculation ? " · " + v.immatriculation : ""}` })));
-        } catch (_) { /* liste de véhicules indisponible : le devis reste possible sans véhicule */ }
-        if (selected && ![...vsel.options].some((o) => o.value === selected.id))
-          vsel.append(el("option", { value: selected.id, text: selected.libelle ? selected.libelle + (selected.immatriculation ? " · " + selected.immatriculation : "") : "Véhicule sélectionné" }));
-        vsel.value = selected ? selected.id : "";
-      }
-      function chooseClient(c, selectedVehicule) {
-        f.elements.client_id.value = c.id;
-        chosen.textContent = "Client : " + c.nom_affiche + (c.telephone ? " · " + c.telephone : "");
-        return loadVehicules(c.id, selectedVehicule);
-      }
-      document.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => addRow({ type: b.dataset.add }).querySelector("[name=designation]").focus()));
-      f.elements.remise_globale.addEventListener("input", recalc);
-
-      const q = $("#picker-q"), res = $("#picker-results");
-      let timer;
-      q.addEventListener("input", () => {
-        clearTimeout(timer);
-        timer = setTimeout(async () => {
-          const term = q.value.trim();
-          if (term.length < 2) { res.replaceChildren(); return; }
-          try {
-            const out = await api("/api/clients?" + new URLSearchParams({ q: term, par_page: 6 }));
-            res.replaceChildren(...out.clients.map((c) => {
-              const b = el("button", { type: "button", class: "linklike", text: c.nom_affiche + (c.telephone ? " · " + c.telephone : "") });
-              b.addEventListener("click", () => { chooseClient(c, null); res.replaceChildren(); q.value = ""; });
-              return el("li", {}, b);
-            }));
-          } catch (e) { alertBox(e.message); }
-        }, 300);
-      });
-
-      if (editingId) {
-        $("#editeur-titre").textContent = "Modifier le devis";
-        let d;
-        try { d = (await api("/api/devis/" + editingId)).devis; } catch (e) { return alertBox(e.status === 404 ? "Devis introuvable." : e.message); }
-        if (d.statut !== "brouillon") { location.href = "/devis/" + editingId; return; }
-        await chooseClient(d.client, d.vehicule);
-        f.elements.remise_globale.value = d.remise_globale || "";
-        f.elements.conditions.value = d.conditions || "";
-        d.lignes.forEach((l) => addRow(l));
-      } else {
-        const params = new URLSearchParams(location.search), cid = params.get("client_id"), vid = params.get("vehicule_id");
-        f.elements.conditions.value = DEFAULT_CONDITIONS;
-        if (cid) {
-          try { await chooseClient((await api("/api/clients/" + cid)).client, vid ? { id: vid } : null); } catch (e) { alertBox("Client introuvable."); }
-        }
-        addRow({ type: "main_oeuvre" });
-      }
-
-      f.addEventListener("submit", async (ev) => {
-        ev.preventDefault(); clearErrors(f);
-        const btn = f.querySelector("[type=submit]"); btn.disabled = true;
-        const payload = {
-          client_id: f.elements.client_id.value, vehicule_id: vsel.value || null,
-          remise_globale: f.elements.remise_globale.value, conditions: f.elements.conditions.value,
-          lignes: [...tbody.querySelectorAll("tr")].map((tr) => ({ type: field(tr, "type").value, designation: field(tr, "designation").value, quantite: field(tr, "quantite").value, prix_unitaire: field(tr, "prix_unitaire").value, remise_pct: field(tr, "remise_pct").value })),
-        };
-        try {
-          const out = await api(editingId ? "/api/devis/" + editingId : "/api/devis", { method: editingId ? "PATCH" : "POST", body: payload });
-          location.href = "/devis/" + out.devis.id;
-        } catch (e) {
-          showErrors(f, e.data && e.data.details);
-          alertBox((e.data && e.data.details ? Object.values(e.data.details).join(" ") : "") || e.message || "Erreur réseau, réessayez.");
-        } finally { btn.disabled = false; }
-      });
-    },
+    "devis-editeur": editorPage(DEVIS_KIND),
+    "facture-editeur": editorPage(FACTURE_KIND),
     async "devis-fiche"() {
       const me = await loadMe(); if (!me) return; navLoggedIn(me);
       const id = idFromUrl();
@@ -461,6 +559,7 @@
         $("#devis-resume").textContent = [d.date_emission && "Émis le " + fmtDate(d.date_emission), d.date_validite && "valable jusqu'au " + fmtDate(d.date_validite), d.version > 1 && "version " + d.version].filter(Boolean).join(" · ");
         $("#devis-client").replaceChildren(d.client ? el("a", { href: "/clients/" + d.client.id, text: d.client.nom_affiche }) : "—");
         $("#devis-vehicule").replaceChildren(d.vehicule ? el("a", { href: "/vehicules/" + d.vehicule.id, text: d.vehicule.libelle + (d.vehicule.immatriculation ? " · " + d.vehicule.immatriculation : "") }) : "—");
+        $("#devis-or").replaceChildren(d.ordre ? el("a", { href: "/or/" + d.ordre.id, text: d.ordre.numero }) : "—");
         const acc = $("#devis-acceptation");
         acc.hidden = !(d.accepte_le || d.refuse_le);
         if (d.accepte_le) acc.textContent = `Accepté par ${d.acceptation_nom} le ${fmtDate(d.accepte_le)} (${d.acceptation_mode === "lien" ? "via le lien client" : "enregistré par le garage"}).`;
@@ -494,6 +593,12 @@
             newVersion);
         }
         if (st === "refuse" || st === "expire") act.append(newVersion);
+        if (st === "accepte" && ["owner", "receptionniste", "comptable"].includes(me.utilisateur.role)) {
+          act.append(btn("Créer la facture", async () => {
+            try { location.href = "/factures/" + (await api("/api/factures", { method: "POST", body: { devis_id: id } })).facture.id; }
+            catch (e) { if (e.data && e.data.details && e.data.details.facture_id) location.href = "/factures/" + e.data.details.facture_id; else throw e; }
+          }, "btn"));
+        }
         act.append(el("a", { class: "btn btn-ghost", href: `/api/devis/${id}/pdf`, target: "_blank", rel: "noopener noreferrer", text: "Télécharger le PDF" }));
       }
       await load();
@@ -539,6 +644,242 @@
         answer("refuse", { motif }, "refuse");
       });
     },
+    async or() {
+      const me = await loadMe(); if (!me) return; navLoggedIn(me);
+      if (!["owner", "receptionniste"].includes(me.utilisateur.role)) $("#btn-nouveau").hidden = true;
+      pagedList({
+        url: "/api/or", itemKey: "ordres",
+        extra: () => { const p = { q: $("#q").value.trim(), statut: $("#statut").value }; if ($("#mes").checked) p.mecanicien_id = "moi"; return p; },
+        render: (o) => itemLink("/or/" + o.id, `${o.numero} · ${o.vehicule ? o.vehicule.libelle : ""}`,
+          [orLabel(o.statut), o.vehicule && o.vehicule.immatriculation, o.client && o.client.nom_affiche, o.urgent && "URGENT"].filter(Boolean).join(" · ")),
+      });
+    },
+    async "or-nouveau"() {
+      const me = await loadMe(); if (!me) return; navLoggedIn(me);
+      const f = $("#or-form"), chosen = $("#vehicule-chosen"), submit = $("#or-submit"), msel = f.elements.mecanicien_id;
+      try { (await api("/api/or/mecaniciens")).mecaniciens.forEach((m) => msel.append(el("option", { value: m.id, text: m.nom }))); } catch (_) { /* liste indisponible */ }
+      const label = (v) => `${v.marque} ${v.modele}${v.immatriculation ? " · " + v.immatriculation : ""}`;
+      function chooseVehicule(v) {
+        f.elements.vehicule_id.value = v.id;
+        chosen.textContent = `${label(v)} — ` + (v.proprietaire ? "propriétaire : " + v.proprietaire.nom_affiche : "aucun propriétaire. Rattachez d'abord ce véhicule à un client (fiche du véhicule).");
+        submit.disabled = !v.proprietaire;
+        if (v.kilometrage_actuel !== null && v.kilometrage_actuel !== undefined && !f.elements.kilometrage_entree.value) f.elements.kilometrage_entree.value = v.kilometrage_actuel;
+      }
+      const params = new URLSearchParams(location.search), cid = params.get("client_id"), vid = params.get("vehicule_id");
+      if (cid) {
+        try {
+          const out = await api("/api/vehicules?" + new URLSearchParams({ client_id: cid, par_page: 100 }));
+          const sel = $("#client-vehicules"); $("#client-vehicules-label").hidden = false;
+          out.vehicules.forEach((v) => sel.append(el("option", { value: v.id, text: label(v) })));
+          sel.addEventListener("change", () => { const v = out.vehicules.find((x) => x.id === sel.value); if (v) chooseVehicule(v); });
+        } catch (_) { /* on peut toujours chercher un véhicule */ }
+      }
+      if (vid) { try { chooseVehicule((await api("/api/vehicules/" + vid)).vehicule); } catch (_) { alertBox("Véhicule introuvable."); } }
+      const q = $("#picker-q"), res = $("#picker-results");
+      let timer;
+      q.addEventListener("input", () => {
+        clearTimeout(timer);
+        timer = setTimeout(async () => {
+          const term = q.value.trim();
+          if (term.length < 2) { res.replaceChildren(); return; }
+          try {
+            const out = await api("/api/vehicules?" + new URLSearchParams({ q: term, par_page: 6 }));
+            res.replaceChildren(...out.vehicules.map((v) => {
+              const b = el("button", { type: "button", class: "linklike", text: label(v) + (v.proprietaire ? " · " + v.proprietaire.nom_affiche : "") });
+              b.addEventListener("click", () => { chooseVehicule(v); res.replaceChildren(); q.value = ""; });
+              return el("li", {}, b);
+            }));
+          } catch (e) { alertBox(e.message); }
+        }, 300);
+      });
+      f.addEventListener("submit", async (ev) => {
+        ev.preventDefault(); clearErrors(f); submit.disabled = true;
+        const payload = { vehicule_id: f.elements.vehicule_id.value, motif: f.elements.motif.value, symptomes: f.elements.symptomes.value,
+          kilometrage_entree: f.elements.kilometrage_entree.value, niveau_carburant: f.elements.niveau_carburant.value, etat_arrivee: f.elements.etat_arrivee.value,
+          date_sortie_prevue: f.elements.date_sortie_prevue.value, mecanicien_id: msel.value || null, urgent: f.elements.urgent.checked };
+        try {
+          const out = await api("/api/or", { method: "POST", body: payload });
+          const warn = (out.avertissements || []).join(" ");
+          if (warn) alertBox(warn, "success");
+          setTimeout(() => (location.href = "/or/" + out.ordre.id), warn ? 2500 : 0);
+        } catch (e) {
+          submit.disabled = false;
+          showErrors(f, e.data && e.data.details);
+          alertBox((e.data && e.data.details ? Object.values(e.data.details).join(" ") : "") || e.message || "Erreur réseau, réessayez.");
+        }
+      });
+    },
+    async "or-fiche"() {
+      const me = await loadMe(); if (!me) return; navLoggedIn(me);
+      const id = idFromUrl(), f = $("#or-form"), role = me.utilisateur.role;
+      const canEdit = ["owner", "receptionniste"].includes(role), notesOnly = new Set(["diagnostic", "travaux_effectues"]);
+      try { (await api("/api/or/mecaniciens")).mecaniciens.forEach((m) => f.elements.mecanicien_id.append(el("option", { value: m.id, text: m.nom }))); } catch (_) { /* liste indisponible */ }
+      const btn = (text, fn, cls = "btn btn-ghost") => {
+        const b = el("button", { type: "button", class: cls, text });
+        b.addEventListener("click", async () => { b.disabled = true; try { await fn(); } catch (e) { alertBox(e.message); } finally { b.disabled = false; } });
+        return b;
+      };
+      const post = (path, body) => api(`/api/or/${id}/${path}`, { method: "POST", body });
+      const canPay = ["owner", "receptionniste", "comptable"].includes(role);
+      async function loadFinance(o) {
+        try {
+          const fac = await api("/api/factures?" + new URLSearchParams({ or_id: id, statut: "tous", par_page: 20 }));
+          $("#factures-liste").replaceChildren(...fac.factures.map((f) => itemLink("/factures/" + f.id, f.numero || "Brouillon",
+            [fstat(f.statut_paiement)[0], fmtMoney(f.total_ttc, f.devise_decimales, f.devise)].join(" · "))));
+          $("#factures-vide").hidden = fac.factures.length > 0;
+          $("#btn-facturer").hidden = o.statut === "annule" || fac.factures.some((f) => f.statut !== "annulee");
+          const pay = await api("/api/paiements?" + new URLSearchParams({ or_id: id, par_page: 50 }));
+          const open = pay.paiements.filter((p) => !p.facture_id);
+          $("#acomptes-liste").replaceChildren(...open.map((p) => el("li", {}, el("span", { text: `${fmtDate(p.date_paiement)} · ${p.moyen_label} · ${fmtMoney(p.montant, fac.factures[0] ? fac.factures[0].devise_decimales : 0, p.devise)} ` }),
+            el("a", { href: `/api/paiements/${p.id}/recu`, target: "_blank", rel: "noopener noreferrer", text: p.recu ? "Reçu " + p.recu.numero : "Reçu" }))));
+          $("#acomptes-vide").hidden = open.length > 0;
+        } catch (e) { $("#finance-card").hidden = true; }
+      }
+      if (canPay) {
+        $("#btn-acompte").addEventListener("click", () => { const form = $("#acompte-form"); form.hidden = !form.hidden; });
+        bindPaymentForm($("#acompte-form"), () => ({ or_id: id }), () => load());
+        $("#btn-facturer").addEventListener("click", async () => {
+          try { location.href = "/factures/" + (await api("/api/factures", { method: "POST", body: { or_id: id } })).facture.id; }
+          catch (e) { if (e.data && e.data.details && e.data.details.facture_id) location.href = "/factures/" + e.data.details.facture_id; else alertBox((e.data && e.data.details ? Object.values(e.data.details).join(" ") : "") || e.message); }
+        });
+      }
+      async function load() {
+        let out;
+        try { out = await api("/api/or/" + id); } catch (e) { return alertBox(e.status === 404 ? "Ordre de réparation introuvable." : e.message); }
+        const o = out.ordre, closed = o.statut === "livre" || o.statut === "annule";
+        $("#or-titre").textContent = o.numero;
+        const badgeNode = $("#or-badge"), [t, c] = OR_STATUTS[o.statut] || [o.statut, "muted2"]; badgeNode.textContent = t; badgeNode.className = "badge " + c;
+        $("#or-urgent").hidden = !o.urgent;
+        $("#or-resume").textContent = [o.date_entree && "Entré le " + fmtDate(o.date_entree), o.date_sortie_prevue && "sortie prévue le " + fmtDate(o.date_sortie_prevue), o.date_livraison && "livré le " + fmtDate(o.date_livraison)].filter(Boolean).join(" · ");
+        $("#or-vehicule").replaceChildren(o.vehicule ? el("a", { href: "/vehicules/" + o.vehicule.id, text: o.vehicule.libelle + (o.vehicule.immatriculation ? " · " + o.vehicule.immatriculation : "") }) : "—");
+        $("#or-client").replaceChildren(o.client ? (["owner", "receptionniste", "comptable"].includes(role) ? el("a", { href: "/clients/" + o.client.id, text: o.client.nom_affiche }) : o.client.nom_affiche) : "—");
+        $("#or-mecano").textContent = o.mecanicien ? o.mecanicien.nom : "Non affecté";
+        $("#or-motif").textContent = o.motif;
+        $("#or-autorisation").textContent = o.autorisation ? `Travaux autorisés par ${o.autorisation.nom} le ${fmtDate(o.autorisation.date)}.` : "Aucune autorisation de travaux enregistrée.";
+
+        const act = $("#actions"), other = $("#actions-autres"); act.replaceChildren(); other.replaceChildren();
+        out.transitions_possibles.filter((st) => st !== "annule").forEach((st, i) => act.append(btn(OR_ACTIONS[st] || st, async () => {
+          const res = await post("status", { statut: st });
+          if ((res.avertissements || []).length) alertBox(res.avertissements.join(" "), "success");
+          await load();
+        }, i === 0 ? "btn" : "btn btn-ghost")));
+        if (!out.transitions_possibles.length) act.append(el("span", { class: "muted", text: "Cet ordre est clos." }));
+        if (canEdit && !closed && !o.autorisation) other.append(btn("Enregistrer l'autorisation de travaux", async () => {
+          const nom = prompt("Nom de la personne qui autorise les travaux :", o.client ? o.client.nom_affiche : ""); if (!nom) return;
+          await post("authorize", { nom }); await load();
+        }));
+        if (out.transitions_possibles.includes("annule")) other.append(btn("Annuler l'ordre", async () => {
+          const note = prompt("Motif de l'annulation :"); if (!note) return;
+          await post("status", { statut: "annule", note }); await load();
+        }));
+        other.append(el("a", { class: "btn btn-ghost", href: `/api/or/${id}/pdf`, target: "_blank", rel: "noopener noreferrer", text: "Imprimer l'ordre (PDF)" }));
+
+        $("#devis-card").hidden = role === "mecanicien";
+        $("#btn-devis").hidden = !canEdit || closed;
+        $("#btn-devis").href = "/devis/nouveau?" + new URLSearchParams({ client_id: o.client_id, vehicule_id: o.vehicule_id, or_id: id });
+        $("#devis-liste").replaceChildren(...out.devis.map((d) => itemLink("/devis/" + d.id, d.numero || "Brouillon",
+          [(STATUTS[d.statut_effectif] || [d.statut_effectif])[0], fmtMoney(d.total_ttc, d.devise_decimales, d.devise)].join(" · "))));
+        $("#devis-vide").hidden = out.devis.length > 0;
+        $("#finance-card").hidden = !canPay;
+        if (canPay) await loadFinance(o);
+        $("#historique").replaceChildren(...out.historique.map((h) => el("li", {}, el("span", { class: "muted", text:
+          `${fmtDateTime(h.date)} — ` + (h.ancien_statut === h.nouveau_statut ? (h.commentaire || "") : `${h.ancien_statut ? orLabel(h.ancien_statut) + " → " : ""}${orLabel(h.nouveau_statut)}${h.commentaire ? " : " + h.commentaire : ""}`) + (h.par ? ` (${h.par})` : "") }))));
+
+        const values = { motif: o.motif, symptomes: o.symptomes, diagnostic: o.diagnostic, travaux_effectues: o.travaux_effectues, etat_arrivee: o.etat_arrivee,
+          kilometrage_entree: o.kilometrage_entree, niveau_carburant: o.niveau_carburant, date_sortie_prevue: o.date_sortie_prevue ? o.date_sortie_prevue.slice(0, 10) : "", mecanicien_id: o.mecanicien_id };
+        [...f.elements].forEach((e) => {
+          if (!e.name) return;
+          if (e.name === "urgent") e.checked = o.urgent; else if (e.name in values) e.value = values[e.name] === null || values[e.name] === undefined ? "" : String(values[e.name]);
+          e.disabled = closed || (!canEdit && !notesOnly.has(e.name));
+        });
+        $("#or-save").hidden = closed;
+      }
+      f.addEventListener("submit", async (ev) => {
+        ev.preventDefault(); clearErrors(f);
+        const payload = {};
+        [...f.elements].forEach((e) => { if (e.name && !e.disabled) payload[e.name] = e.type === "checkbox" ? e.checked : e.value; });
+        try { await api("/api/or/" + id, { method: "PATCH", body: payload }); alertBox("Modifications enregistrées.", "success"); await load(); }
+        catch (e) { showErrors(f, e.data && e.data.details); alertBox((e.data && e.data.details ? Object.values(e.data.details).join(" ") : "") || e.message || "Erreur réseau, réessayez."); }
+      });
+      await load();
+    },
+    async factures() {
+      const me = await loadMe(); if (!me) return; navLoggedIn(me);
+      try {
+        const c = await api("/api/paiements/caisse");
+        const parts = Object.entries(c.par_moyen).map(([m, t]) => `${({ especes: "Espèces", momo_mtn: "MTN MoMo", momo_moov: "Moov Money", momo_celtiis: "Celtiis Cash", virement: "Virement", carte: "Carte", cheque: "Chèque", autre: "Autre" })[m] || m} ${fmtMoney(t, c.devise_decimales, c.devise)}`);
+        $("#caisse").textContent = `Encaissé aujourd'hui : ${fmtMoney(c.total, c.devise_decimales, c.devise)} (${c.nombre} paiement${c.nombre > 1 ? "s" : ""})` + (parts.length ? " — " + parts.join(", ") : "");
+      } catch (_) { $("#caisse").hidden = true; }
+      pagedList({
+        url: "/api/factures", itemKey: "factures",
+        extra: () => ({ q: $("#q").value.trim(), statut: $("#statut").value }),
+        render: (f) => itemLink("/factures/" + f.id, `${f.numero || "Brouillon"} · ${f.client ? f.client.nom_affiche : ""}`,
+          [fstat(f.statut_paiement)[0], fmtMoney(f.total_ttc, f.devise_decimales, f.devise), f.statut === "emise" && f.reste_a_payer > 0 ? "reste " + fmtMoney(f.reste_a_payer, f.devise_decimales, f.devise) : "", fmtDate(f.emise_le || f.cree_le)].filter(Boolean).join(" · ")),
+      });
+    },
+    async "facture-fiche"() {
+      const me = await loadMe(); if (!me) return; navLoggedIn(me);
+      const id = idFromUrl(), role = me.utilisateur.role, form = $("#paiement-form");
+      const canPay = ["owner", "receptionniste", "comptable"].includes(role), canCancel = ["owner", "comptable"].includes(role);
+      let reste = 0;
+      bindPaymentForm(form, () => ({ facture_id: id }), () => load());
+      const btn = (text, fn, cls = "btn btn-ghost") => {
+        const b = el("button", { type: "button", class: cls, text });
+        b.addEventListener("click", async () => { b.disabled = true; try { await fn(); } catch (e) { alertBox(e.message); } finally { b.disabled = false; } });
+        return b;
+      };
+      async function load() {
+        let out;
+        try { out = await api("/api/factures/" + id); } catch (e) { return alertBox(e.status === 404 ? "Facture introuvable." : e.message); }
+        const f = out.facture, dec = f.devise_decimales, money = (n) => fmtMoney(n, dec, f.devise);
+        $("#fac-titre").textContent = f.numero || "Brouillon";
+        const [t, c] = fstat(f.statut_paiement); $("#fac-badge").textContent = t; $("#fac-badge").className = "badge " + c;
+        $("#fac-resume").textContent = [f.emise_le && "Émise le " + fmtDate(f.emise_le), f.echeance && f.statut === "emise" && "échéance le " + fmtDate(f.echeance), f.empreinte && "empreinte " + f.empreinte].filter(Boolean).join(" · ");
+        $("#fac-client").replaceChildren(f.client ? el("a", { href: "/clients/" + f.client.id, text: f.client.nom_affiche }) : "—");
+        $("#fac-vehicule").replaceChildren(f.vehicule ? el("a", { href: "/vehicules/" + f.vehicule.id, text: f.vehicule.libelle + (f.vehicule.immatriculation ? " · " + f.vehicule.immatriculation : "") }) : "—");
+        $("#fac-or").replaceChildren(f.ordre ? el("a", { href: "/or/" + f.ordre.id, text: f.ordre.numero }) : "—");
+        $("#fac-devis").replaceChildren(f.devis ? el("a", { href: "/devis/" + f.devis.id, text: f.devis.numero || "Devis" }) : "—");
+        const av = $("#fac-avoir"); av.hidden = !out.avoir;
+        if (out.avoir) av.textContent = `Facture annulée par l'avoir ${out.avoir.numero} du ${fmtDate(out.avoir.date)} (${out.avoir.motif}).`;
+        linesTable($("#lignes-table"), f); totalsBlock($("#totaux"), f);
+        $("#fac-conditions").textContent = f.conditions || "—";
+        reste = f.reste_a_payer || 0;
+        $("#paiements-card").hidden = f.statut === "brouillon";
+        $("#fac-solde").textContent = f.statut === "emise" ? `Payé ${money(f.total_paye)} · reste ${money(reste)}` : "";
+        $("#paiements-liste").replaceChildren(...out.paiements.map((p) => el("li", {},
+          el("span", { class: p.statut === "annule" ? "muted strike" : "", text: `${fmtDate(p.date_paiement)} · ${p.moyen_label} · ${money(p.montant)}${p.reference ? " · réf. " + p.reference : ""}${p.statut === "annule" ? " · ANNULÉ" : ""} ` }),
+          el("a", { href: `/api/paiements/${p.id}/recu`, target: "_blank", rel: "noopener noreferrer", text: p.recu ? "Reçu " + p.recu.numero : "Reçu" }),
+          canCancel && p.statut === "valide" ? el("span", {}, " · ", btn("Annuler ce paiement", async () => {
+            const motif = prompt("Motif de l'annulation du paiement :"); if (!motif) return;
+            await api(`/api/paiements/${p.id}/cancel`, { method: "POST", body: { motif } }); await load();
+          }, "linklike")) : "")));
+        $("#paiements-vide").hidden = out.paiements.length > 0;
+
+        const act = $("#actions"); act.replaceChildren();
+        const post = (path, body) => api(`/api/factures/${id}/${path}`, { method: "POST", body });
+        if (f.statut === "brouillon") {
+          act.append(
+            el("a", { class: "btn", href: `/factures/${id}/modifier`, text: "Modifier" }),
+            btn("Émettre la facture", async () => {
+              const j = prompt("Délai de paiement, en jours (0 = à réception) ?", "30"); if (j === null) return;
+              await post("emit", { echeance_jours: Number(j) >= 0 && j !== "" ? Number(j) : undefined });
+              alertBox("Facture émise : elle a maintenant son numéro légal et ne peut plus être modifiée.", "success"); await load();
+            }, "btn"),
+            btn("Supprimer le brouillon", async () => { if (!confirm("Supprimer ce brouillon ?")) return; await api("/api/factures/" + id, { method: "DELETE" }); location.href = "/factures"; }));
+        }
+        if (f.statut === "emise") {
+          if (canPay && reste > 0) act.append(btn("Enregistrer un paiement", async () => { form.hidden = !form.hidden; if (!form.hidden) form.elements.montant.value = reste; }, "btn"));
+          if (canCancel && f.total_paye === 0) act.append(btn("Annuler la facture (avoir)", async () => {
+            const motif = prompt("Motif de l'annulation (un avoir sera émis) :"); if (!motif) return;
+            await post("cancel", { motif }); await load();
+          }));
+          act.append(btn("Vérifier l'intégrité", async () => { const r = await api(`/api/factures/${id}/verify`); alertBox(r.integre ? "Facture intacte : l'empreinte correspond à celle de l'émission." : "ATTENTION : la facture ne correspond plus à son empreinte.", r.integre ? "success" : undefined); }));
+        }
+        if (f.statut === "annulee") act.append(el("a", { class: "btn btn-ghost", href: `/api/factures/${id}/avoir/pdf`, target: "_blank", rel: "noopener noreferrer", text: "Avoir (PDF)" }));
+        act.append(el("a", { class: "btn btn-ghost", href: `/api/factures/${id}/pdf`, target: "_blank", rel: "noopener noreferrer", text: "Télécharger le PDF" }));
+      }
+      await load();
+    },
     async "verifier-email"() {
       const token = new URLSearchParams(location.search).get("token"), s = $("#verify-status");
       try { const out = await api("/api/auth/verify-email", { method: "POST", body: { token } }); s.textContent = out.message; }
@@ -548,6 +889,7 @@
   };
 
   document.addEventListener("DOMContentLoaded", () => {
+    initMenu();
     document.querySelectorAll("form[data-api]").forEach(bindForm);
     const fn = pages[document.body.dataset.page]; if (fn) fn();
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});

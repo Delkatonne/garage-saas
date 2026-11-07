@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Factures{% endblock %}
+{% block content %}
+<section class="card">
+  <div class="toolbar"><h1>Factures</h1><a class="btn" href="/factures/nouveau">+ Nouvelle facture</a></div>
+  <p class="muted" id="caisse"></p>
+  <form id="search-form" class="search" role="search">
+    <input id="q" type="search" placeholder="Numéro ou nom du client…" aria-label="Rechercher une facture">
+    <select id="statut" aria-label="Statut">
+      <option value="tous">Toutes</option><option value="brouillon">Brouillons</option><option value="impayees">Impayées</option>
+      <option value="partielles">Partiellement payées</option><option value="en_retard">En retard</option><option value="payees">Payées</option><option value="annulee">Annulées</option>
+    </select>
+  </form>
+  <ul id="list" class="list"></ul>
+  <p id="empty" class="muted" hidden>Aucune facture trouvée.</p>
+  <div class="pager"><button class="btn btn-ghost" id="prev" type="button">Précédent</button><span id="page-info" class="muted"></span><button class="btn btn-ghost" id="next" type="button">Suivant</button></div>
+</section>
+{% endblock %}
