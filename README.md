@@ -61,11 +61,20 @@ Pour un client non navigateur, l'en-tête `Authorization: Bearer <access_token>`
 * **Phase 2, étape 2** : **devis** (`/devis`) : lignes de main-d'œuvre, pièces, forfaits, remises par ligne et globale, TVA du garage,
   numérotation `DEV-2026-0001` attribuée à l'envoi (aucun trou), validité, nouvelles versions (`-V2`...), PDF avec logo, lien à envoyer au
   client (WhatsApp) pour qu'il consulte, télécharge et accepte ou refuse le devis sans compte.
-* À venir : ordres de réparation, factures, paiements et reçus, stock.
+* **Phase 2, étape 3** : **ordres de réparation** (`/or`) : accueil du véhicule (motif, symptômes, kilométrage, carburant, état à l'arrivée,
+  urgence, mécanicien, sortie prévue), numéro `OR-2026-0001`, statuts avec historique, autorisation de travaux, notes de l'atelier,
+  PDF imprimable, devis liés à l'ordre (l'envoi et l'acceptation d'un devis font avancer l'ordre automatiquement).
+* **Phase 2, étape 4** : **factures, paiements, reçus et avoirs** (`/factures`) : brouillon créé à partir d'un devis accepté et/ou d'un
+  ordre de réparation (ou vide), numéro légal `FAC-2026-0001` attribué à l'émission (aucun trou), données du garage et du client **figées**
+  à l'émission, empreinte d'intégrité (SHA-256), facture émise **jamais modifiable ni supprimable** (correction par **avoir** `AV-...`),
+  paiements partiels ou totaux (espèces, MTN MoMo, Moov Money, Celtiis Cash, virement, carte, chèque), **reçu** `REC-...` à chaque paiement,
+  **acomptes** pris sur l'ordre et rattachés à la facture à son émission, annulation d'un paiement avec motif, caisse du jour, PDF.
+  Un paiement renvoyé par erreur (réseau instable) n'est jamais enregistré deux fois (clé d'idempotence).
+* À venir : bon de sortie, stock, planning.
 
 ## Base de données sans terminal (Neon)
 
-Les fichiers `docs/sql/neon-phase1.sql`, `neon-phase2-etape1.sql` puis `neon-phase2-etape2-devis.sql` sont à coller dans l'éditeur SQL de Neon, dans cet ordre,
+Les fichiers `docs/sql/neon-phase1.sql`, `neon-phase2-etape1.sql` puis `neon-phase2-etape2-devis.sql` `neon-phase2-etape3-or.sql` puis `neon-phase2-etape4-factures.sql` sont à coller dans l'éditeur SQL de Neon, dans cet ordre,
 chacun une seule fois. Ils sont l'équivalent exact des migrations Alembic (`flask db upgrade`).
 
 ## Déploiement sur Vercel
@@ -117,6 +126,8 @@ mot de passe oublié et logo.
 * **Logos en production : Cloudinary obligatoire** (pas de disque persistant sur Vercel).
 * **Emails envoyés pendant la requête** (pas de thread d'arrière-plan en serverless) ; un échec d'envoi est journalisé sans bloquer l'inscription.
 * **Limitation des tentatives** : sans Redis (`RATELIMIT_STORAGE_URI`), chaque instance compte de son côté. Le verrouillage par compte reste efficace (stocké en base).
+* **Session** : les cookies de connexion sont persistants (30 jours, renouvelés à chaque utilisation) : on reste connecté en quittant l'application. Le jeton d'accès (15 min) est renouvelé automatiquement, y compris au rechargement d'une page.
+* **Menu** : barre horizontale sur ordinateur, menu hamburger sur téléphone (largeur ≤ 760 px).
 * **Cron** : `/api/cron/purge-tokens` (chaque jour à 03:00 UTC) supprime les jetons expirés ; la route répond 404 sans `CRON_SECRET`.
 * **PDF** : générés avec ReportLab (Python pur). Le logo est téléchargé depuis Cloudinary au moment du PDF ; s'il est inaccessible, le PDF est produit sans logo.
 * **Lien client d'un devis** : secret aléatoire de 256 bits (seule son empreinte est stockée) ; un nouveau lien remplace l'ancien ; routes publiques limitées en fréquence.
